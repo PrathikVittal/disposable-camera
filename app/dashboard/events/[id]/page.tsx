@@ -271,7 +271,7 @@ export default function EventDetailPage({
       // Fetch each photo from CDN and add to ZIP
       await Promise.all(
         filteredPhotos.map(async (photo, i) => {
-          const res = await fetch(photo.storageUrl);
+          const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.storageUrl)}`);
           const blob = await res.blob();
           const ext = blob.type.split("/")[1] ?? "jpg";
           zip.file(`photo-${String(i + 1).padStart(3, "0")}.${ext}`, blob);
