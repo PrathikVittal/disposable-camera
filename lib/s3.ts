@@ -6,17 +6,17 @@ import {
 import { randomUUID } from "crypto";
 
 function getS3Config() {
-  const region = process.env.AWS_REGION;
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const region = process.env.REGION;
+  const accessKeyId = process.env.ACCESS_KEY_ID;
+  const secretAccessKey = process.env.SECRET_ACCESS_KEY;
   const bucket = process.env.S3_BUCKET_NAME;
   const cfDomain = process.env.CLOUDFRONT_DOMAIN;
 
   if (!region || !accessKeyId || !secretAccessKey || !bucket || !cfDomain) {
     const missing = [
-      !region && "AWS_REGION",
-      !accessKeyId && "AWS_ACCESS_KEY_ID",
-      !secretAccessKey && "AWS_SECRET_ACCESS_KEY",
+      !region && "REGION",
+      !accessKeyId && "ACCESS_KEY_ID",
+      !secretAccessKey && "SECRET_ACCESS_KEY",
       !bucket && "S3_BUCKET_NAME",
       !cfDomain && "CLOUDFRONT_DOMAIN",
     ].filter(Boolean);
