@@ -18,10 +18,26 @@ type CreateEventForm = {
 
 const MAX_COVER_DIMENSION = 1200;
 
+function isHeic(file: File): boolean {
+  return (
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    /\.(heic|heif)$/i.test(file.name)
+  );
+}
+
+async function normalizeToBlob(file: File): Promise<Blob> {
+  if (!isHeic(file)) return file;
+  const heic2any = (await import("heic2any")).default;
+  const result = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+  return Array.isArray(result) ? result[0] : result;
+}
+
 async function resizeImageToDataUrl(file: File): Promise<string> {
+  const blob = await normalizeToBlob(file);
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(blob);
     img.onload = () => {
       URL.revokeObjectURL(url);
       const { naturalWidth: w, naturalHeight: h } = img;
