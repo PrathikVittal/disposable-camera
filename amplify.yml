@@ -10,7 +10,7 @@ frontend:
         # Write them to .env.production so Prisma + Next.js can
         # read them at runtime (SSR / API routes).
         - |
-          printenv | grep -E '^(DATABASE_URL|DIRECT_URL|AUTH_SECRET|AUTH_GOOGLE_ID|AUTH_GOOGLE_SECRET|REGION|ACCESS_KEY_ID|SECRET_ACCESS_KEY|S3_BUCKET_NAME|CLOUDFRONT_DOMAIN)=' > .env.production
+          printenv | grep -E '^(DATABASE_URL|DIRECT_URL|AUTH_SECRET|AUTH_URL|AUTH_GOOGLE_ID|AUTH_GOOGLE_SECRET|REGION|ACCESS_KEY_ID|SECRET_ACCESS_KEY|S3_BUCKET_NAME|CLOUDFRONT_DOMAIN)=' > .env.production
         - npx prisma generate
         - npm run build
   artifacts:
