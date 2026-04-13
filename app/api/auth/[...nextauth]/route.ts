@@ -10,7 +10,7 @@ const _dbg = (msg: string, data: Record<string, unknown>) => {
 // #endregion
 
 // #region agent log
-export async function GET(req: NextRequest, ctx: { params: Promise<{ nextauth: string[] }> }) {
+export async function GET(req: NextRequest) {
   _dbg('GET-entry', {
     url: req.url,
     hypothesisA_AUTH_SECRET: !!process.env.AUTH_SECRET,
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ nextauth: s
     hypothesisD_NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? 'NOT_SET',
   });
   try {
-    const res = await handlers.GET(req, ctx);
+    const res = await handlers.GET(req);
     _dbg('GET-success', { status: res.status });
     return res;
   } catch (err: unknown) {
@@ -34,10 +34,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ nextauth: s
 // #endregion
 
 // #region agent log
-export async function POST(req: NextRequest, ctx: { params: Promise<{ nextauth: string[] }> }) {
+export async function POST(req: NextRequest) {
   _dbg('POST-entry', { url: req.url, AUTH_SECRET_exists: !!process.env.AUTH_SECRET });
   try {
-    const res = await handlers.POST(req, ctx);
+    const res = await handlers.POST(req);
     _dbg('POST-success', { status: res.status });
     return res;
   } catch (err: unknown) {
