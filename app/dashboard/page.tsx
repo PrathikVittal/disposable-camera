@@ -167,7 +167,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50">
-      <main className="mx-auto flex max-w-5xl flex-col gap-10 px-4 py-10 sm:px-8 sm:py-12">
+      <main className="mx-auto flex max-w-2xl flex-col gap-10 px-4 py-10 sm:px-8 sm:py-12">
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -199,7 +199,7 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <section className="grid gap-8 md:grid-cols-[minmax(0,1.2fr),minmax(0,1.1fr)]">
+        <section className="space-y-8">
           <form
             onSubmit={handleSubmit}
             className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5"
@@ -376,7 +376,7 @@ export default function DashboardPage() {
                 <p className="text-sm text-zinc-400">Loading events…</p>
               ) : events.length === 0 ? (
                 <p className="text-sm text-zinc-400">
-                  No events yet. Create your first event on the left.
+                  No events yet. Create your first event above.
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -393,19 +393,11 @@ export default function DashboardPage() {
                           </div>
                         )}
                         <div className="space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-zinc-100">
-                              {event.name}
-                            </p>
-                            <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-300">
-                              {event.date}
-                            </span>
-                            <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-300">
-                              {event.photoLimitPerGuest} photos / guest
-                            </span>
-                          </div>
+                          <p className="font-medium text-zinc-100">
+                            {event.name}
+                          </p>
                           <p className="text-xs text-zinc-500">
-                            Moderation {event.moderationEnabled ? "on" : "off"}
+                            {event.date} · {event.photoLimitPerGuest} photos/guest · Moderation {event.moderationEnabled ? "on" : "off"}
                           </p>
                         </div>
                       </div>

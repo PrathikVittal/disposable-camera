@@ -566,11 +566,11 @@ export default function EventDetailPage({
                   <button
                     type="button"
                     onClick={() => setStatusFilter("pending")}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${statusFilter === "pending" ? "bg-amber-300 text-black" : "text-zinc-300"}`}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${statusFilter === "pending" ? "bg-zinc-100 text-black" : "text-zinc-300"}`}
                   >
                     Pending
                     {pendingCount > 0 && (
-                      <span className={`rounded-full px-1.5 py-0 text-[10px] font-semibold ${statusFilter === "pending" ? "bg-black/20" : "bg-amber-400/20 text-amber-300"}`}>
+                      <span className={`rounded-full px-1.5 py-0 text-[10px] font-semibold ${statusFilter === "pending" ? "bg-black/20" : "bg-zinc-600 text-zinc-200"}`}>
                         {pendingCount}
                       </span>
                     )}
@@ -593,7 +593,7 @@ export default function EventDetailPage({
                     type="button"
                     onClick={handleApproveAll}
                     disabled={bulkPending}
-                    className="flex-1 rounded-full bg-emerald-600 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                    className="flex-1 rounded-full bg-zinc-50 py-1.5 text-[11px] font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
                   >
                     {bulkPending ? "Processing…" : `Approve all (${pendingCount})`}
                   </button>
@@ -601,7 +601,7 @@ export default function EventDetailPage({
                     type="button"
                     onClick={handleRejectAll}
                     disabled={bulkPending}
-                    className="flex-1 rounded-full bg-red-700/70 py-1.5 text-[11px] font-semibold text-white hover:bg-red-600/70 disabled:opacity-50"
+                    className="flex-1 rounded-full border border-zinc-600 py-1.5 text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
                   >
                     {bulkPending ? "Processing…" : `Reject all (${pendingCount})`}
                   </button>
@@ -610,12 +610,12 @@ export default function EventDetailPage({
                   {filteredPhotos.map((photo) => (
                     <div
                       key={photo.id}
-                      className="overflow-hidden rounded-xl border border-amber-400/30 bg-zinc-900"
+                      className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900"
                     >
                       <div className="relative aspect-[3/4]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
-                        <span className="absolute left-2 top-2 rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">
+                        <span className="absolute left-2 top-2 rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] font-semibold text-zinc-200">
                           Pending
                         </span>
                       </div>
@@ -626,14 +626,14 @@ export default function EventDetailPage({
                         <button
                           type="button"
                           onClick={() => handleApprove(photo.id)}
-                          className="flex-1 rounded-full bg-emerald-500 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-400"
+                          className="flex-1 rounded-full bg-zinc-50 py-1.5 text-[11px] font-semibold text-black hover:bg-zinc-200"
                         >
                           Approve
                         </button>
                         <button
                           type="button"
                           onClick={() => handleReject(photo.id)}
-                          className="flex-1 rounded-full bg-red-600/80 py-1.5 text-[11px] font-semibold text-white hover:bg-red-500"
+                          className="flex-1 rounded-full border border-zinc-600 py-1.5 text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800"
                         >
                           Reject
                         </button>
@@ -663,7 +663,6 @@ export default function EventDetailPage({
                       <div className="relative aspect-[3/4]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                       </div>
                       <div className="px-2.5 py-1.5 text-[11px] text-zinc-500">
                         {new Date(photo.createdAt).toLocaleTimeString()}
@@ -751,7 +750,7 @@ export default function EventDetailPage({
             onClick={() => setEditOpen(false)}
           />
           {/* Panel */}
-          <div className="h-full w-full max-w-sm overflow-y-auto bg-zinc-950 shadow-2xl sm:w-96">
+          <div className="h-full w-full max-w-sm overflow-y-auto bg-zinc-950 sm:w-96">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-5 py-4">
               <h2 className="text-sm font-semibold text-zinc-100">Edit event</h2>
               <button

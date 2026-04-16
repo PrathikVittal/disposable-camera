@@ -550,7 +550,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
                     title={flashOn ? "Flash on" : "Flash off"}
                     className={`flex h-11 w-11 items-center justify-center rounded-full border ${
                       flashOn
-                        ? "border-yellow-400 bg-yellow-400 text-black"
+                        ? "border-zinc-50 bg-zinc-50 text-black"
                         : "border-zinc-700 bg-zinc-800/80 text-white hover:bg-zinc-700"
                     }`}
                   >

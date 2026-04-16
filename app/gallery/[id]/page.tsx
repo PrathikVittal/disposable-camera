@@ -161,7 +161,7 @@ export default function PublicGalleryPage({
             {visiblePhotos.map((photo, i) => (
               <div
                 key={photo.id}
-                className="mb-3 cursor-pointer overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 transition-transform hover:scale-[1.01]"
+                className="mb-3 cursor-pointer overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"
                 onClick={() => { setSlideshowIdx(i); setSlideshowOpen(true); }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
