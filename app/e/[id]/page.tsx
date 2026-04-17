@@ -103,11 +103,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       const caps = track.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
       setTorchSupported(caps?.torch === true);
       setFlashOn(false);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.oncanplay = () => setVideoReady(true);
-        await videoRef.current.play();
-      }
+      setStreamId((n) => n + 1);
       setStep("camera");
     } catch (e) {
       console.error(e);
@@ -116,6 +112,19 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       else setError("Could not start camera. Please try again.");
     }
   };
+
+  // Track stream identity so the attach-effect re-runs after flip
+  const [streamId, setStreamId] = useState(0);
+
+  // Attach stream to video element once the DOM renders
+  useEffect(() => {
+    if (step !== "camera" || !streamRef.current || !videoRef.current) return;
+    const video = videoRef.current;
+    if (video.srcObject === streamRef.current) return;
+    video.srcObject = streamRef.current;
+    video.oncanplay = () => setVideoReady(true);
+    video.play().catch(() => {});
+  }, [step, streamId]);
 
   const flipCamera = async () => {
     stopStream();
