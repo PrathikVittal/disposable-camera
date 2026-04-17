@@ -7,6 +7,8 @@ import JSZip from "jszip";
 import type { Event, Photo } from "@/lib/types";
 import QRCode, { type QRCodeHandle } from "@/app/components/QRCode";
 import TimePicker from "@/app/components/TimePicker";
+import Overline from "@/app/components/Overline";
+import StatGrid from "@/app/components/StatGrid";
 
 type EventWithPhotos = {
   event: Event;
@@ -57,13 +59,10 @@ export default function EventDetailPage({
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [slideshowIdx, setSlideshowIdx] = useState(0);
 
-  // Edit panel state
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-
-  // Bulk moderation state
   const [bulkPending, setBulkPending] = useState(false);
 
   const fetchEvent = useCallback(async (isManual = false) => {
@@ -93,7 +92,6 @@ export default function EventDetailPage({
   }, [fetchEvent]);
 
   const qrRef = useRef<QRCodeHandle>(null);
-
   const guestLink = useMemo(() => buildGuestUrl(id), [id]);
   const galleryLink = useMemo(() => buildGalleryUrl(id), [id]);
 
@@ -109,28 +107,23 @@ export default function EventDetailPage({
   const handleDownloadPoster = () => {
     const srcCanvas = qrRef.current?.getCanvas();
     if (!srcCanvas || !data) return;
-
     const QR_SIZE = 280;
     const PADDING = 40;
     const TEXT_AREA = 160;
     const FOOTER = 48;
     const W = QR_SIZE + PADDING * 2;
     const H = TEXT_AREA + QR_SIZE + FOOTER + PADDING * 2;
-
     const poster = document.createElement("canvas");
     poster.width = W;
     poster.height = H;
     const ctx = poster.getContext("2d");
     if (!ctx) return;
-
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, W, H);
-
     ctx.fillStyle = "#111111";
     ctx.font = "bold 28px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-
     const maxWidth = W - PADDING * 2;
     const words = data.event.name.split(" ");
     let line = "";
@@ -148,20 +141,16 @@ export default function EventDetailPage({
     }
     ctx.fillText(line, W / 2, y);
     y += lineHeight + 12;
-
     ctx.font = "18px system-ui, sans-serif";
     ctx.fillStyle = "#555555";
     ctx.fillText(data.event.date, W / 2, y);
     y += 30 + 24;
-
     const qrX = (W - QR_SIZE) / 2;
     ctx.drawImage(srcCanvas, qrX, y, QR_SIZE, QR_SIZE);
     y += QR_SIZE + 20;
-
     ctx.font = "14px system-ui, sans-serif";
     ctx.fillStyle = "#888888";
     ctx.fillText("Scan to take photos — no app needed", W / 2, y);
-
     const dataUrl = poster.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = dataUrl;
@@ -212,9 +201,7 @@ export default function EventDetailPage({
 
   const handleReject = async (photoId: string) => {
     try {
-      const res = await fetch(`/api/events/${id}/photos/${photoId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/events/${id}/photos/${photoId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to reject photo");
       setData((prev) =>
         prev ? { ...prev, photos: prev.photos.filter((p) => p.id !== photoId) } : prev,
@@ -225,7 +212,6 @@ export default function EventDetailPage({
     }
   };
 
-  // Bulk approve all pending
   const handleApproveAll = async () => {
     const pending = data?.photos.filter((p) => p.status === "pending") ?? [];
     if (pending.length === 0) return;
@@ -246,7 +232,6 @@ export default function EventDetailPage({
     }
   };
 
-  // Bulk reject (delete) all pending
   const handleRejectAll = async () => {
     const pending = data?.photos.filter((p) => p.status === "pending") ?? [];
     if (pending.length === 0) return;
@@ -268,7 +253,6 @@ export default function EventDetailPage({
     setZipping(true);
     try {
       const zip = new JSZip();
-      // Fetch each photo from CDN and add to ZIP
       await Promise.all(
         filteredPhotos.map(async (photo, i) => {
           const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.storageUrl)}`);
@@ -289,14 +273,11 @@ export default function EventDetailPage({
     }
   };
 
-  // Keyboard navigation for slideshow
   useEffect(() => {
     if (!slideshowOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight")
-        setSlideshowIdx((prev) => (prev + 1) % filteredPhotos.length);
-      if (e.key === "ArrowLeft")
-        setSlideshowIdx((prev) => (prev - 1 + filteredPhotos.length) % filteredPhotos.length);
+      if (e.key === "ArrowRight") setSlideshowIdx((prev) => (prev + 1) % filteredPhotos.length);
+      if (e.key === "ArrowLeft") setSlideshowIdx((prev) => (prev - 1 + filteredPhotos.length) % filteredPhotos.length);
       if (e.key === "Escape") setSlideshowOpen(false);
     };
     window.addEventListener("keydown", handler);
@@ -312,7 +293,6 @@ export default function EventDetailPage({
     return () => clearTimeout(timer);
   }, [slideshowOpen, slideshowIdx, filteredPhotos.length]);
 
-  // Open edit panel
   const openEdit = () => {
     if (!data) return;
     setEditForm({
@@ -337,12 +317,7 @@ export default function EventDetailPage({
       prev
         ? {
             ...prev,
-            [name]:
-              type === "checkbox"
-                ? checked
-                : name === "photoLimitPerGuest"
-                  ? Number(value)
-                  : value,
+            [name]: type === "checkbox" ? checked : name === "photoLimitPerGuest" ? Number(value) : value,
           }
         : prev,
     );
@@ -375,318 +350,278 @@ export default function EventDetailPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 px-4 py-10 text-zinc-50 sm:px-8">
-        <p className="text-sm text-zinc-400">Loading event…</p>
+      <div className="min-h-screen bg-white px-[15px] py-10 text-black">
+        <p className="text-[10px] text-[#888]">Loading event…</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-zinc-950 px-4 py-10 text-zinc-50 sm:px-8">
-        <Link
-          href="/dashboard"
-          className="text-xs text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
-        >
+      <div className="min-h-screen bg-white px-[15px] py-10 text-black">
+        <Link href="/dashboard" className="text-[8px] text-[#888] uppercase tracking-[0.12em]">
           ← Back to dashboard
         </Link>
-        <p className="mt-4 text-sm text-red-400">
-          {error ?? "Event not found."}
-        </p>
+        <p className="mt-4 text-[10px] text-red-500">{error ?? "Event not found."}</p>
       </div>
     );
   }
 
   const { event } = data;
+  const uniqueGuests = new Set(data.photos.map((p) => p.guestSessionId)).size;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50">
-      <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div className="flex-1">
-            <Link
-              href="/dashboard"
-              className="text-xs text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
-            >
-              ← Back to dashboard
-            </Link>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {event.name}
-              </h1>
-              <button
-                type="button"
-                onClick={openEdit}
-                className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
-              >
-                Edit event
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-zinc-400">
-              {event.date}
-              {event.startTime && event.endTime
-                ? ` • ${event.startTime}–${event.endTime}`
-                : ""}{" "}
-              • {event.photoLimitPerGuest} photos/guest •{" "}
-              Moderation {event.moderationEnabled ? "on" : "off"}
-            </p>
-            {event.description && (
-              <p className="mt-2 text-sm text-zinc-500">{event.description}</p>
-            )}
-          </div>
+    <div className="min-h-screen bg-white text-black">
+      {/* Header */}
+      <div className="px-[15px] py-2 border-b border-black">
+        <div className="flex items-center justify-between">
+          <Link href="/dashboard" className="text-[8px] text-[#888] uppercase tracking-[0.12em]">
+            ← Back
+          </Link>
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/auth/login" })}
-            className="rounded-full border border-zinc-700 px-4 py-1.5 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-800"
+            onClick={openEdit}
+            className="rounded-[20px] border-[1.5px] border-black px-3 py-[4px] text-[9px] font-[700] uppercase tracking-[0.08em]"
           >
-            Sign out
+            Edit
           </button>
         </div>
+        <h1 className="text-[20px] font-[800] tracking-[-0.02em] mt-1">{event.name}</h1>
+        <p className="text-[8px] text-[#888] tracking-[0.04em]">
+          {event.date}
+          {event.startTime && event.endTime ? ` · ${event.startTime}–${event.endTime}` : ""}
+          {" "}· {event.photoLimitPerGuest} photos/guest
+        </p>
+      </div>
 
-        <section className="grid gap-6 md:grid-cols-[minmax(0,1.1fr),minmax(0,1.2fr)]">
-          {/* Left: Share panel */}
-          <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-              Share with guests
-            </h2>
+      {/* Stat grid */}
+      <StatGrid
+        stats={[
+          { value: filteredPhotos.length, label: "Photos" },
+          { value: uniqueGuests, label: "Guests" },
+          { value: event.photoLimitPerGuest, label: "Limit", accent: true },
+        ]}
+      />
 
-            {event.coverImageUrl && (
-              <div className="overflow-hidden rounded-xl">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={event.coverImageUrl} alt="" className="h-24 w-full object-cover" />
-              </div>
-            )}
+      {/* QR Section */}
+      <section className="bg-black text-white px-[15px] py-4">
+        <Overline className="text-[#555]">Scan to Join</Overline>
+        <div className="flex justify-center my-3 bg-white rounded-[6px] p-3 mx-auto w-fit">
+          <QRCode ref={qrRef} value={guestLink} size={140} />
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadQR}
+            className="flex-1 bg-[#FF3C00] text-white text-center text-[10px] font-[800] tracking-[0.08em] uppercase rounded-[6px] py-[10px]"
+          >
+            Download QR
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPoster}
+            className="flex-1 border-[1.5px] border-white text-white text-center text-[10px] font-[700] tracking-[0.08em] uppercase rounded-[6px] py-[9px]"
+          >
+            Poster
+          </button>
+        </div>
+      </section>
 
-            <div className="space-y-3">
-              <div className="space-y-1.5 text-xs">
-                <p className="font-medium text-zinc-200">Guest link</p>
-                <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2">
-                  <span className="line-clamp-1 flex-1 text-[11px] text-zinc-400">
-                    {guestLink}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyLink(guestLink)}
-                    className="rounded-full border border-zinc-700 px-3 py-1 text-[11px] text-zinc-100 hover:border-zinc-500 hover:bg-zinc-800"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
+      <div className="border-b border-black" />
 
-              <div className="space-y-1.5 text-xs">
-                <p className="font-medium text-zinc-200">Public gallery</p>
-                <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2">
-                  <span className="line-clamp-1 flex-1 text-[11px] text-zinc-400">
-                    {galleryLink}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyLink(galleryLink)}
-                    className="rounded-full border border-zinc-700 px-3 py-1 text-[11px] text-zinc-100 hover:border-zinc-500 hover:bg-zinc-800"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <Link
-                  href={`/gallery/${id}`}
-                  target="_blank"
-                  className="inline-block text-[11px] text-zinc-500 underline-offset-4 hover:text-zinc-300 hover:underline"
-                >
-                  Open gallery ↗
-                </Link>
-              </div>
+      {/* Share links */}
+      <section className="px-[15px] py-3">
+        <Overline className="mb-2">Share with Guests</Overline>
 
-              <div className="space-y-3">
-                <p className="text-xs font-medium text-zinc-200">QR code</p>
-                <div className="flex justify-center rounded-xl bg-white p-3">
-                  <QRCode ref={qrRef} value={guestLink} size={180} />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDownloadQR}
-                    className="flex-1 rounded-full border border-zinc-700 py-1.5 text-[11px] font-medium text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800"
-                  >
-                    Download QR
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadPoster}
-                    className="flex-1 rounded-full border border-zinc-700 py-1.5 text-[11px] font-medium text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800"
-                  >
-                    Download poster
-                  </button>
-                </div>
-              </div>
+        {/* Guest link */}
+        <div className="rounded-[6px] bg-[#F5F5F5] border border-[#E0E0E0] px-[11px] py-[9px] mb-2">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 mr-2">
+              <p className="text-[8px] font-[700] text-[#888] uppercase tracking-[0.12em]">Guest Link</p>
+              <p className="text-[9px] font-mono tracking-[0.06em] text-black truncate">{guestLink}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => handleCopyLink(guestLink)}
+              className="shrink-0 bg-black text-white text-[8px] font-[700] rounded-[4px] px-[10px] py-[5px]"
+            >
+              Copy
+            </button>
           </div>
+        </div>
 
-          {/* Right: Gallery panel */}
-          <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                  Event gallery
-                </h2>
-                <p className="mt-0.5 text-[11px] text-zinc-500">
-                  Auto-refreshes every 5s.{" "}
-                  {lastRefreshed && (
-                    <span>Updated {lastRefreshed.toLocaleTimeString()}.</span>
-                  )}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fetchEvent(true)}
-                  disabled={refreshing}
-                  className="rounded-full border border-zinc-700 px-3 py-1 text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  {refreshing ? "…" : "Refresh"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSlideshowIdx(0); setSlideshowOpen(true); }}
-                  disabled={filteredPhotos.length === 0}
-                  className="rounded-full border border-zinc-700 px-3 py-1 text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  Slideshow
-                </button>
-              </div>
-              <div className="flex gap-1 rounded-full bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 ring-1 ring-zinc-700">
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("all")}
-                  className={`rounded-full px-2 py-0.5 ${statusFilter === "all" ? "bg-zinc-100 text-black" : "text-zinc-300"}`}
-                >
-                  All
-                </button>
-                {event.moderationEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => setStatusFilter("pending")}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${statusFilter === "pending" ? "bg-zinc-100 text-black" : "text-zinc-300"}`}
-                  >
-                    Pending
-                    {pendingCount > 0 && (
-                      <span className={`rounded-full px-1.5 py-0 text-[10px] font-semibold ${statusFilter === "pending" ? "bg-black/20" : "bg-zinc-600 text-zinc-200"}`}>
-                        {pendingCount}
-                      </span>
-                    )}
-                  </button>
-                )}
-              </div>
+        {/* Gallery link */}
+        <div className="rounded-[6px] bg-[#F5F5F5] border border-[#E0E0E0] px-[11px] py-[9px] mb-2">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 mr-2">
+              <p className="text-[8px] font-[700] text-[#888] uppercase tracking-[0.12em]">Public Gallery</p>
+              <p className="text-[9px] font-mono tracking-[0.06em] text-black truncate">{galleryLink}</p>
             </div>
-
-            {filteredPhotos.length === 0 ? (
-              <p className="text-sm text-zinc-400">
-                {statusFilter === "pending"
-                  ? "No photos waiting for review."
-                  : "No photos yet. Ask guests to scan the link and start shooting."}
-              </p>
-            ) : statusFilter === "pending" ? (
-              <>
-                {/* Bulk actions */}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleApproveAll}
-                    disabled={bulkPending}
-                    className="flex-1 rounded-full bg-zinc-50 py-1.5 text-[11px] font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
-                  >
-                    {bulkPending ? "Processing…" : `Approve all (${pendingCount})`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRejectAll}
-                    disabled={bulkPending}
-                    className="flex-1 rounded-full border border-zinc-600 py-1.5 text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
-                  >
-                    {bulkPending ? "Processing…" : `Reject all (${pendingCount})`}
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredPhotos.map((photo) => (
-                    <div
-                      key={photo.id}
-                      className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900"
-                    >
-                      <div className="relative aspect-[3/4]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
-                        <span className="absolute left-2 top-2 rounded-full bg-zinc-700 px-2 py-0.5 text-[10px] font-semibold text-zinc-200">
-                          Pending
-                        </span>
-                      </div>
-                      <div className="px-2 pb-1 pt-1.5 text-[11px] text-zinc-500">
-                        {new Date(photo.createdAt).toLocaleTimeString()}
-                      </div>
-                      <div className="flex gap-1.5 border-t border-zinc-800 px-2 py-2">
-                        <button
-                          type="button"
-                          onClick={() => handleApprove(photo.id)}
-                          className="flex-1 rounded-full bg-zinc-50 py-1.5 text-[11px] font-semibold text-black hover:bg-zinc-200"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleReject(photo.id)}
-                          className="flex-1 rounded-full border border-zinc-600 py-1.5 text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={handleDownloadZip}
-                  disabled={zipping}
-                  className="w-full rounded-full border border-zinc-700 py-1.5 text-[11px] font-medium text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  {zipping
-                    ? "Preparing ZIP…"
-                    : `Download all ${filteredPhotos.length} photo${filteredPhotos.length === 1 ? "" : "s"} as ZIP`}
-                </button>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {filteredPhotos.map((photo) => (
-                    <div
-                      key={photo.id}
-                      className="group overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"
-                    >
-                      <div className="relative aspect-[3/4]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
-                      </div>
-                      <div className="px-2.5 py-1.5 text-[11px] text-zinc-500">
-                        {new Date(photo.createdAt).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => handleCopyLink(galleryLink)}
+              className="shrink-0 bg-black text-white text-[8px] font-[700] rounded-[4px] px-[10px] py-[5px]"
+            >
+              Copy
+            </button>
           </div>
-        </section>
-      </main>
+        </div>
+
+        <Link
+          href={`/gallery/${id}`}
+          target="_blank"
+          className="block w-full rounded-[6px] bg-[#F5F5F5] border border-[#E0E0E0] py-[9px] text-center text-[9px] font-[700] tracking-[0.06em] uppercase text-[#FF3C00]"
+        >
+          Open Gallery ↗
+        </Link>
+      </section>
+
+      <div className="border-b border-black" />
+
+      {/* Gallery / moderation section */}
+      <section className="px-[15px] py-3">
+        <div className="flex items-center justify-between mb-2">
+          <Overline className="mb-0">Event Gallery</Overline>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => fetchEvent(true)}
+              disabled={refreshing}
+              className="text-[8px] font-[700] text-[#888] uppercase tracking-[0.08em] disabled:opacity-50"
+            >
+              {refreshing ? "…" : "Refresh"}
+            </button>
+            <span className="text-[8px] text-[#E0E0E0]">|</span>
+            <button
+              type="button"
+              onClick={() => { setSlideshowIdx(0); setSlideshowOpen(true); }}
+              disabled={filteredPhotos.length === 0}
+              className="text-[8px] font-[700] text-[#888] uppercase tracking-[0.08em] disabled:opacity-50"
+            >
+              Slideshow
+            </button>
+          </div>
+        </div>
+
+        {lastRefreshed && (
+          <p className="text-[8px] text-[#888] mb-2">Updated {lastRefreshed.toLocaleTimeString()}</p>
+        )}
+
+        {/* Tab row */}
+        {event.moderationEnabled && (
+          <div className="flex border border-black rounded-[6px] overflow-hidden mb-3">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`flex-1 py-[6px] text-[9px] font-[700] uppercase tracking-[0.08em] ${statusFilter === "all" ? "bg-black text-white" : "bg-white text-[#888]"}`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("pending")}
+              className={`flex-1 py-[6px] text-[9px] font-[700] uppercase tracking-[0.08em] border-l border-black ${statusFilter === "pending" ? "bg-black text-white" : "bg-white text-[#888]"}`}
+            >
+              Pending{pendingCount > 0 ? ` (${pendingCount})` : ""}
+            </button>
+          </div>
+        )}
+
+        {filteredPhotos.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-[10px] text-[#888]">
+              {statusFilter === "pending"
+                ? "No photos waiting for review."
+                : "No photos yet. Share your QR code to get things rolling."}
+            </p>
+          </div>
+        ) : statusFilter === "pending" ? (
+          <>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={handleApproveAll}
+                disabled={bulkPending}
+                className="flex-1 rounded-[6px] bg-black text-white py-[9px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:opacity-50"
+              >
+                {bulkPending ? "Processing…" : `Approve all (${pendingCount})`}
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectAll}
+                disabled={bulkPending}
+                className="flex-1 rounded-[6px] border-[1.5px] border-black text-black py-[8px] text-[10px] font-[700] tracking-[0.08em] uppercase disabled:opacity-50"
+              >
+                {bulkPending ? "Processing…" : `Reject all`}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {filteredPhotos.map((photo) => (
+                <div key={photo.id} className="rounded-[6px] border border-black overflow-hidden">
+                  <div className="relative aspect-[3/4]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute left-1 top-1 rounded-[4px] bg-black text-white px-[6px] py-[2px] text-[7px] font-[700]">
+                      Pending
+                    </span>
+                  </div>
+                  <div className="flex border-t border-black">
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(photo.id)}
+                      className="flex-1 py-[7px] text-[9px] font-[800] uppercase bg-black text-white border-r border-black"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReject(photo.id)}
+                      className="flex-1 py-[7px] text-[9px] font-[700] uppercase text-[#888]"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={handleDownloadZip}
+              disabled={zipping}
+              className="w-full rounded-[6px] bg-black text-white py-[10px] text-[10px] font-[800] tracking-[0.08em] uppercase mb-3 disabled:opacity-50"
+            >
+              {zipping ? "Preparing ZIP…" : `Download all ${filteredPhotos.length} photo${filteredPhotos.length === 1 ? "" : "s"} as ZIP`}
+            </button>
+            <div className="grid grid-cols-3 gap-[3px]">
+              {filteredPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="aspect-square rounded-[3px] overflow-hidden cursor-pointer"
+                  onClick={() => { setSlideshowIdx(filteredPhotos.indexOf(photo)); setSlideshowOpen(true); }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Slideshow overlay */}
       {slideshowOpen && filteredPhotos.length > 0 && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-zinc-400">
+          <div className="flex items-center justify-between px-[15px] py-3">
+            <span className="text-[9px] text-[#888]">
               {slideshowIdx + 1} / {filteredPhotos.length}
             </span>
             <button
               type="button"
               onClick={() => setSlideshowOpen(false)}
-              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
+              className="rounded-[6px] border border-white/30 px-3 py-1 text-[9px] text-white"
             >
               Close
             </button>
@@ -700,121 +635,82 @@ export default function EventDetailPage({
               className="max-h-full max-w-full object-contain"
             />
             {filteredPhotos.length > 1 && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSlideshowIdx(
-                    (prev) => (prev - 1 + filteredPhotos.length) % filteredPhotos.length,
-                  )
-                }
-                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-black/60 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
-              >
-                ‹
-              </button>
-            )}
-            {filteredPhotos.length > 1 && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSlideshowIdx((prev) => (prev + 1) % filteredPhotos.length)
-                }
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-black/60 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800"
-              >
-                ›
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSlideshowIdx((prev) => (prev - 1 + filteredPhotos.length) % filteredPhotos.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-[6px] bg-white/10 px-3 py-2 text-white text-sm"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlideshowIdx((prev) => (prev + 1) % filteredPhotos.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[6px] bg-white/10 px-3 py-2 text-white text-sm"
+                >
+                  ›
+                </button>
+              </>
             )}
           </div>
-          {filteredPhotos.length > 1 && (
-            <div className="flex justify-center gap-1.5 py-3">
-              {filteredPhotos.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setSlideshowIdx(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === slideshowIdx ? "w-4 bg-zinc-100" : "w-1.5 bg-zinc-600"
-                  }`}
-                />
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Edit event panel (slide-in from right) */}
+      {/* Edit event panel */}
       {editOpen && editForm && (
         <div className="fixed inset-0 z-40 flex">
-          {/* Backdrop */}
-          <div
-            className="flex-1 bg-black/60 backdrop-blur-sm"
-            onClick={() => setEditOpen(false)}
-          />
-          {/* Panel */}
-          <div className="h-full w-full max-w-sm overflow-y-auto bg-zinc-950 sm:w-96">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-5 py-4">
-              <h2 className="text-sm font-semibold text-zinc-100">Edit event</h2>
-              <button
-                type="button"
-                onClick={() => setEditOpen(false)}
-                className="rounded-full p-1 text-zinc-400 hover:text-zinc-100"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
+          <div className="flex-1 bg-black/50" onClick={() => setEditOpen(false)} />
+          <div className="h-full w-full max-w-sm overflow-y-auto bg-white">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black bg-white px-[15px] py-3">
+              <h2 className="text-[13px] font-[800]">Edit event</h2>
+              <button type="button" onClick={() => setEditOpen(false)} className="text-[#888] text-[14px]">
+                ✕
               </button>
             </div>
-            <form onSubmit={handleEditSave} className="space-y-4 p-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Event name</label>
+            <form onSubmit={handleEditSave} className="space-y-[8px] p-[15px]">
+              <div>
+                <Overline>Event Name</Overline>
                 <input
                   name="name"
                   value={editForm.name}
                   onChange={handleEditChange}
                   required
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-zinc-400"
+                  className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] outline-none focus:border-black focus:bg-white"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Date</label>
+              <div>
+                <Overline>Date</Overline>
                 <input
                   type="date"
                   name="date"
                   value={editForm.date}
                   onChange={handleEditChange}
                   required
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-zinc-400"
+                  className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] outline-none focus:border-black focus:bg-white"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">Starts at</label>
-                  <TimePicker
-                    value={editForm.startTime}
-                    onChange={(v) => setEditForm((p) => p ? { ...p, startTime: v } : p)}
-                    placeholder="--:--"
-                  />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Overline>Starts at</Overline>
+                  <TimePicker value={editForm.startTime} onChange={(v) => setEditForm((p) => p ? { ...p, startTime: v } : p)} placeholder="--:--" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">Ends at</label>
-                  <TimePicker
-                    value={editForm.endTime}
-                    onChange={(v) => setEditForm((p) => p ? { ...p, endTime: v } : p)}
-                    placeholder="--:--"
-                  />
+                <div className="flex-1">
+                  <Overline>Ends at</Overline>
+                  <TimePicker value={editForm.endTime} onChange={(v) => setEditForm((p) => p ? { ...p, endTime: v } : p)} placeholder="--:--" />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Description</label>
+              <div>
+                <Overline>Description</Overline>
                 <textarea
                   name="description"
                   value={editForm.description}
                   onChange={handleEditChange}
                   rows={3}
-                  className="w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+                  className="w-full resize-none rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] outline-none focus:border-black focus:bg-white"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Photo limit per guest</label>
+              <div>
+                <Overline>Photo Limit</Overline>
                 <input
                   type="number"
                   min={1}
@@ -822,38 +718,28 @@ export default function EventDetailPage({
                   name="photoLimitPerGuest"
                   value={editForm.photoLimitPerGuest}
                   onChange={handleEditChange}
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-zinc-400"
+                  className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] outline-none focus:border-black focus:bg-white"
                 />
               </div>
-              <label className="flex items-center gap-2 text-xs text-zinc-300">
-                <input
-                  type="checkbox"
-                  name="moderationEnabled"
-                  checked={editForm.moderationEnabled}
-                  onChange={handleEditChange}
-                  className="h-4 w-4 rounded border-zinc-600 bg-zinc-900"
-                />
-                Enable photo moderation
+              <label className="flex items-center gap-2 rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 cursor-pointer">
+                <input type="checkbox" name="moderationEnabled" checked={editForm.moderationEnabled} onChange={handleEditChange} className="h-4 w-4 accent-black" />
+                <span className="text-[10px] text-[#333]">Enable photo moderation</span>
               </label>
-
-              {editError && (
-                <p className="text-xs text-red-400">{editError}</p>
-              )}
-
+              {editError && <p className="text-[10px] text-red-500">{editError}</p>}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditOpen(false)}
-                  className="flex-1 rounded-full border border-zinc-700 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800"
+                  className="flex-1 rounded-[6px] border-[1.5px] border-black py-[10px] text-[10px] font-[700] uppercase tracking-[0.08em]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 rounded-full bg-zinc-50 py-2.5 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50"
+                  className="flex-1 rounded-[6px] bg-black text-white py-[10px] text-[10px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
                 >
-                  {saving ? "Saving…" : "Save changes"}
+                  {saving ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>

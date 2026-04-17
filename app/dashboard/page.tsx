@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import type { Event } from "@/lib/types";
 import TimePicker from "@/app/components/TimePicker";
+import Overline from "@/app/components/Overline";
 
 type CreateEventForm = {
   name: string;
@@ -165,264 +166,214 @@ export default function DashboardPage() {
     }
   };
 
+  const increment = () => setForm((p) => ({ ...p, photoLimitPerGuest: Math.min(50, p.photoLimitPerGuest + 1) }));
+  const decrement = () => setForm((p) => ({ ...p, photoLimitPerGuest: Math.max(1, p.photoLimitPerGuest - 1) }));
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50">
-      <main className="mx-auto flex max-w-2xl flex-col gap-10 px-4 py-10 sm:px-8 sm:py-12">
-        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Host dashboard
-            </h1>
-            {session?.user && (
-              <p className="mt-1 text-sm text-zinc-400">
-                Signed in as{" "}
-                <span className="font-medium text-zinc-200">
-                  {session.user.name ?? session.user.email}
-                </span>
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-sm text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
-            >
-              Home
-            </Link>
-            <button
-              type="button"
-              onClick={() => signOut({ callbackUrl: "/auth/login" })}
-              className="rounded-full border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
-            >
-              Sign out
-            </button>
-          </div>
-        </header>
-
-        <section className="space-y-8">
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5"
+    <div className="min-h-screen bg-white text-black">
+      {/* Dark header */}
+      <header className="bg-black text-white px-[15px] pt-2 pb-4 border-b border-black">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[14px] font-[800] tracking-[0.18em]">
+            DD<span className="text-[#FF3C00]">C</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/auth/login" })}
+            className="rounded-[6px] border-[1.5px] border-white text-white px-3 py-[5px] text-[9px] font-[700] tracking-[0.08em] uppercase"
           >
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                Create event
-              </h2>
-              <p className="mt-1 text-xs text-zinc-500">
-                Minimal setup: name, date, and a photo limit per guest.
-              </p>
-            </div>
+            Sign out
+          </button>
+        </div>
+        <Overline className="text-[#555]">Host Dashboard</Overline>
+        <h1 className="text-[22px] font-[800] tracking-[-0.02em] leading-tight">
+          Hello, {session?.user?.name ?? session?.user?.email ?? "there"}.
+        </h1>
+        <p className="text-[9px] text-[#555] mt-0.5">
+          {events.length} active event{events.length === 1 ? "" : "s"}
+        </p>
+      </header>
 
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">
-                  Event name
-                </label>
+      {/* Create event form */}
+      <form onSubmit={handleSubmit} className="px-[15px] py-[13px] border-b border-black">
+        <Overline className="mb-2">Create New Event</Overline>
+
+        <div className="space-y-[8px]">
+          <div>
+            <Overline>Event Name</Overline>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              placeholder="Summer rooftop party"
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <Overline>Date</Overline>
+            <input
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              required
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none focus:border-black focus:bg-white"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Overline>Starts at</Overline>
+              <TimePicker
+                value={form.startTime}
+                onChange={(v) => setForm((prev) => ({ ...prev, startTime: v }))}
+                placeholder="--:--"
+              />
+            </div>
+            <div className="flex-1">
+              <Overline>Ends at</Overline>
+              <TimePicker
+                value={form.endTime}
+                onChange={(v) => setForm((prev) => ({ ...prev, endTime: v }))}
+                placeholder="--:--"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Overline>Description (optional)</Overline>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              rows={2}
+              placeholder="What should guests know..."
+              className="w-full resize-none rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
+            />
+          </div>
+
+          {/* Cover photo upload */}
+          <div>
+            <Overline>Cover Photo (optional)</Overline>
+            <div className="flex items-start gap-2">
+              <label className="flex-1 flex cursor-pointer items-center justify-center rounded-[6px] border border-dashed border-[#CCC] bg-[#F5F5F5] px-[10px] py-[10px] text-[9px] text-[#AAA]">
+                {coverPreview ? "Change image" : "↑ Upload cover photo"}
                 <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Summer rooftop party"
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none ring-0 placeholder:text-zinc-500 focus:border-zinc-400"
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCoverChange}
                 />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={form.date}
-                    onChange={handleChange}
-                    required
-                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-zinc-400"
-                  />
+              </label>
+              {coverPreview && (
+                <div className="relative h-[42px] w-[42px] shrink-0 overflow-hidden rounded-[4px] border border-[#E0E0E0]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => { setCoverPreview(null); setCoverDataUrl(""); if (coverInputRef.current) coverInputRef.current.value = ""; }}
+                    className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center bg-black text-[8px] text-white"
+                  >
+                    ×
+                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">
-                      Starts at
-                    </label>
-                    <TimePicker
-                      value={form.startTime}
-                      onChange={(v) => setForm((prev) => ({ ...prev, startTime: v }))}
-                      placeholder="--:--"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">
-                      Ends at
-                    </label>
-                    <TimePicker
-                      value={form.endTime}
-                      onChange={(v) => setForm((prev) => ({ ...prev, endTime: v }))}
-                      placeholder="--:--"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  rows={2}
-                  placeholder="Optional: What should guests know when they scan the QR code?"
-                  className="w-full resize-none rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
-                />
-              </div>
-
-              {/* Cover image upload */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">
-                  Cover image <span className="text-zinc-500">(optional)</span>
-                </label>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-zinc-700 bg-zinc-900 px-3 py-2.5 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" x2="12" y1="3" y2="15" />
-                      </svg>
-                      {coverPreview ? "Change image" : "Upload cover photo"}
-                      <input
-                        ref={coverInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleCoverChange}
-                      />
-                    </label>
-                  </div>
-                  {coverPreview && (
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-zinc-700">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => { setCoverPreview(null); setCoverDataUrl(""); if (coverInputRef.current) coverInputRef.current.value = ""; }}
-                        className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[10px] text-white"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">
-                    Photo limit per guest
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    name="photoLimitPerGuest"
-                    value={form.photoLimitPerGuest}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none focus:border-zinc-400"
-                  />
-                  <p className="text-[11px] text-zinc-500">
-                    Enforced per-device in this MVP.
-                  </p>
-                </div>
-                <div className="flex items-start pt-6">
-                  <label className="flex items-center gap-2 text-xs text-zinc-300">
-                    <input
-                      type="checkbox"
-                      name="moderationEnabled"
-                      checked={form.moderationEnabled}
-                      onChange={handleChange}
-                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-zinc-50"
-                    />
-                    Enable photo moderation
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-xs font-medium text-red-400">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex w-full items-center justify-center rounded-full bg-zinc-50 px-4 py-2.5 text-sm font-medium text-black shadow-sm transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-zinc-400"
-            >
-              {submitting ? "Creating event…" : "Create event"}
-            </button>
-          </form>
-
-          <section className="space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                Your events
-              </h2>
-            </div>
-            <div className="space-y-3">
-              {loading ? (
-                <p className="text-sm text-zinc-400">Loading events…</p>
-              ) : events.length === 0 ? (
-                <p className="text-sm text-zinc-400">
-                  No events yet. Create your first event above.
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {events.map((event) => (
-                    <li
-                      key={event.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        {event.coverImageUrl && (
-                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-zinc-700">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={event.coverImageUrl} alt="" className="h-full w-full object-cover" />
-                          </div>
-                        )}
-                        <div className="space-y-0.5">
-                          <p className="font-medium text-zinc-100">
-                            {event.name}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            {event.date} · {event.photoLimitPerGuest} photos/guest · Moderation {event.moderationEnabled ? "on" : "off"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2 text-xs">
-                        <Link
-                          href={`/dashboard/events/${event.id}`}
-                          className="rounded-full border border-zinc-700 px-3 py-1 text-zinc-100 hover:border-zinc-500 hover:bg-zinc-900"
-                        >
-                          Open event
-                        </Link>
-                        <Link
-                          href={`/e/${event.id}`}
-                          className="text-[11px] text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
-                        >
-                          Guest link
-                        </Link>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
               )}
             </div>
-          </section>
-        </section>
-      </main>
+          </div>
+
+          {/* Photo limit stepper */}
+          <div>
+            <Overline>Photos Per Guest</Overline>
+            <div className="flex items-center rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-[6px]">
+              <span className="flex-1 text-[10px] text-[#888]">Photo limit</span>
+              <button
+                type="button"
+                onClick={decrement}
+                className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] bg-black text-white text-[12px] font-[800]"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-[14px] font-[800]">{form.photoLimitPerGuest}</span>
+              <button
+                type="button"
+                onClick={increment}
+                className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] bg-black text-white text-[12px] font-[800]"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Moderation checkbox */}
+          <label className="flex items-center gap-2 rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 cursor-pointer">
+            <input
+              type="checkbox"
+              name="moderationEnabled"
+              checked={form.moderationEnabled}
+              onChange={handleChange}
+              className="h-4 w-4 rounded-[3px] border-[1.5px] border-black accent-black"
+            />
+            <span className="text-[10px] text-[#333]">Enable photo moderation</span>
+          </label>
+        </div>
+
+        {error && (
+          <p className="mt-2 text-[10px] font-[600] text-red-500">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="mt-3 w-full rounded-[6px] bg-[#FF3C00] text-white py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Creating event…" : "Create event →"}
+        </button>
+      </form>
+
+      {/* Event list */}
+      <section className="px-[15px] py-[12px]">
+        <Overline className="mb-2">Your Events</Overline>
+        <div className="space-y-2">
+          {loading ? (
+            <p className="text-[10px] text-[#888]">Loading events…</p>
+          ) : events.length === 0 ? (
+            <p className="text-[10px] text-[#888]">
+              No events yet. Create your first event above.
+            </p>
+          ) : (
+            events.map((event) => (
+              <div
+                key={event.id}
+                className="flex items-center justify-between rounded-[8px] bg-black px-3 py-[10px]"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {event.coverImageUrl && (
+                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-[4px]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={event.coverImageUrl} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-[800] text-white truncate">{event.name}</p>
+                    <p className="text-[8px] text-[#555] tracking-[0.04em]">
+                      {event.date} · {event.photoLimitPerGuest} photos/guest · Mod {event.moderationEnabled ? "on" : "off"}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/dashboard/events/${event.id}`}
+                  className="shrink-0 bg-[#FF3C00] text-white text-[9px] font-[800] rounded-[4px] px-[10px] py-[6px]"
+                >
+                  Open &rarr;
+                </Link>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }

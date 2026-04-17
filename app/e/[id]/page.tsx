@@ -3,26 +3,20 @@
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Event } from "@/lib/types";
-import Link from "next/link";
+import Overline from "@/app/components/Overline";
+import StatGrid from "@/app/components/StatGrid";
 
-// ---------------------------------------------------------------------------
-// Filter definitions
-// ---------------------------------------------------------------------------
-type FilterKey = "none" | "bw" | "vintage" | "film" | "retro";
+type FilterKey = "none" | "bw" | "vintage" | "film";
 
 const FILTERS: Record<FilterKey, { label: string; css: string }> = {
   none:    { label: "Normal",  css: "" },
   bw:      { label: "B&W",     css: "grayscale(100%)" },
-  vintage: { label: "Vintage", css: "sepia(60%) contrast(90%) brightness(110%) saturate(80%)" },
-  film:    { label: "Film",    css: "contrast(110%) saturate(120%) brightness(95%)" },
-  retro:   { label: "Retro",   css: "sepia(30%) hue-rotate(340deg) saturate(150%) contrast(85%) brightness(105%)" },
+  vintage: { label: "Warm",    css: "sepia(60%) contrast(90%) brightness(110%) saturate(80%)" },
+  film:    { label: "Fade",    css: "contrast(110%) saturate(120%) brightness(95%)" },
 };
 
 const FILTER_KEYS = Object.keys(FILTERS) as FilterKey[];
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 type EventResponse = { event: Event };
 
 function getOrCreateGuestSessionId(eventId: string) {
@@ -30,50 +24,33 @@ function getOrCreateGuestSessionId(eventId: string) {
   const key = `ddc_guest_session_${eventId}`;
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
-  const id = crypto.randomUUID();
-  window.localStorage.setItem(key, id);
-  return id;
+  const gid = crypto.randomUUID();
+  window.localStorage.setItem(key, gid);
+  return gid;
 }
 
-async function uploadWithRetry(
-  url: string,
-  body: string,
-  maxAttempts = 3,
-): Promise<Response> {
+async function uploadWithRetry(url: string, body: string, maxAttempts = 3): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-      // Don't retry 4xx client errors (they are deterministic)
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
       if (res.ok || (res.status >= 400 && res.status < 500)) return res;
     } catch (e) {
       lastError = e;
     }
-    if (attempt < maxAttempts - 1) {
-      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-    }
+    if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
   }
   throw lastError ?? new Error("Upload failed after multiple attempts.");
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 export default function GuestEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
 
-  // Event data
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
-
-  // Photo state
   const [remaining, setRemaining] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadRetrying, setUploadRetrying] = useState(false);
@@ -82,29 +59,20 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [step, setStep] = useState<"intro" | "camera" | "preview">("intro");
   const [videoReady, setVideoReady] = useState(false);
-
-  // Camera controls
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [flashOn, setFlashOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("none");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [photosTaken, setPhotosTaken] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // ---------------------------------------------------------------------------
-  // Fetch event
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     const fetchEvent = async () => {
       try {
         const res = await fetch(`/api/events/${id}`);
-        if (!res.ok) {
-          const json = await res.json();
-          throw new Error(json.error ?? "Event not found");
-        }
+        if (!res.ok) { const json = await res.json(); throw new Error(json.error ?? "Event not found"); }
         const json: EventResponse = await res.json();
         setEvent(json.event);
         setRemaining(json.event.photoLimitPerGuest);
@@ -118,53 +86,23 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
     fetchEvent();
   }, [id]);
 
-  // ---------------------------------------------------------------------------
-  // Stream helpers
-  // ---------------------------------------------------------------------------
   const stopStream = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
   };
 
-  useEffect(() => {
-    return () => stopStream();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { return () => stopStream(); }, []);
 
-  // Close filter dropdown on outside click
-  useEffect(() => {
-    if (!filterOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) {
-        setFilterOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [filterOpen]);
-
-  // ---------------------------------------------------------------------------
-  // Start / flip camera
-  // ---------------------------------------------------------------------------
   const startCamera = async (facing: "environment" | "user" = facingMode) => {
     setVideoReady(false);
     setPermissionDenied(false);
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing },
-        audio: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
       streamRef.current = stream;
-
-      // Torch capability detection
       const [track] = stream.getVideoTracks();
       const caps = track.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
       setTorchSupported(caps?.torch === true);
       setFlashOn(false);
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.oncanplay = () => setVideoReady(true);
@@ -173,475 +111,342 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       setStep("camera");
     } catch (e) {
       console.error(e);
-      const isPermissionDenied =
-        e instanceof DOMException &&
-        (e.name === "NotAllowedError" || e.name === "PermissionDeniedError");
-      if (isPermissionDenied) {
-        setPermissionDenied(true);
-      } else {
-        setError("Could not start camera. Please try again.");
-      }
+      const isPermDenied = e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "PermissionDeniedError");
+      if (isPermDenied) setPermissionDenied(true);
+      else setError("Could not start camera. Please try again.");
     }
   };
 
   const flipCamera = async () => {
     stopStream();
-    const next: "environment" | "user" =
-      facingMode === "environment" ? "user" : "environment";
+    const next: "environment" | "user" = facingMode === "environment" ? "user" : "environment";
     setFacingMode(next);
-    try {
-      await startCamera(next);
-    } catch {
-      setFacingMode(facingMode);
-      await startCamera(facingMode);
-    }
+    try { await startCamera(next); } catch { setFacingMode(facingMode); await startCamera(facingMode); }
   };
 
-  // ---------------------------------------------------------------------------
-  // Flash / torch
-  // ---------------------------------------------------------------------------
   const toggleFlash = async () => {
     const [track] = streamRef.current?.getVideoTracks() ?? [];
     if (!track) return;
     const next = !flashOn;
-    try {
-      await track.applyConstraints({
-        advanced: [{ torch: next } as MediaTrackConstraintSet],
-      });
-      setFlashOn(next);
-    } catch (e) {
-      console.error("Torch toggle failed", e);
-    }
+    try { await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] }); setFlashOn(next); } catch (e) { console.error("Torch toggle failed", e); }
   };
 
-  // ---------------------------------------------------------------------------
-  // Capture (with image compression)
-  // ---------------------------------------------------------------------------
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
-
-    const nativeWidth = video.videoWidth;
-    const nativeHeight = video.videoHeight;
-    if (!nativeWidth || !nativeHeight) {
-      setError("Camera is not ready yet. Please try again.");
-      return;
-    }
-
-    // Scale down to max 1920px on the long edge
-    const MAX_DIMENSION = 1920;
-    const longEdge = Math.max(nativeWidth, nativeHeight);
-    const scale = longEdge > MAX_DIMENSION ? MAX_DIMENSION / longEdge : 1;
+    const nW = video.videoWidth, nH = video.videoHeight;
+    if (!nW || !nH) { setError("Camera is not ready yet."); return; }
+    const MAX_DIM = 1920;
+    const scale = Math.max(nW, nH) > MAX_DIM ? MAX_DIM / Math.max(nW, nH) : 1;
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(nativeWidth * scale);
-    canvas.height = Math.round(nativeHeight * scale);
-
+    canvas.width = Math.round(nW * scale);
+    canvas.height = Math.round(nH * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    // Bake active filter into the captured image
     const filterCss = FILTERS[activeFilter].css;
     if (filterCss) ctx.filter = filterCss;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // JPEG at 0.82 quality keeps file size under ~500 KB for typical shots
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-    setPreviewDataUrl(dataUrl);
+    setPreviewDataUrl(canvas.toDataURL("image/jpeg", 0.82));
     setStep("preview");
   };
 
-  const resetPreview = () => {
-    setPreviewDataUrl(null);
-    setStep("camera");
-  };
+  const resetPreview = () => { setPreviewDataUrl(null); setStep("camera"); };
 
-  // ---------------------------------------------------------------------------
-  // Upload (with exponential backoff retry)
-  // ---------------------------------------------------------------------------
   const uploadPhoto = async () => {
     if (!event || !previewDataUrl || remaining === null) return;
-    if (remaining <= 0) {
-      setPhotoLimitReached(true);
-      return;
-    }
-
+    if (remaining <= 0) { setPhotoLimitReached(true); return; }
     setUploading(true);
     setUploadRetrying(false);
     setError(null);
     try {
       const guestSessionId = getOrCreateGuestSessionId(event.id);
-      const bodyStr = JSON.stringify({ dataUrl: previewDataUrl, guestSessionId });
-
-      // Show "Retrying" state after first failure
-      let attempt = 0;
-      const res = await uploadWithRetry(
-        `/api/events/${event.id}/photos`,
-        bodyStr,
-        3,
-      );
-
-      void attempt; // unused but kept for clarity
-
+      const res = await uploadWithRetry(`/api/events/${event.id}/photos`, JSON.stringify({ dataUrl: previewDataUrl, guestSessionId }), 3);
       if (!res.ok) {
         const json = await res.json();
-        if (res.status === 403) {
-          setPhotoLimitReached(true);
-          stopStream();
-          setShowThankYouModal(true);
-        }
+        if (res.status === 403) { setPhotoLimitReached(true); stopStream(); setShowThankYouModal(true); }
         throw new Error(json.error ?? "Failed to upload photo");
       }
       const newRemaining = remaining - 1;
       setRemaining(newRemaining);
+      setPhotosTaken((p) => p + 1);
       setPreviewDataUrl(null);
-      if (newRemaining <= 0) {
-        setPhotoLimitReached(true);
-        stopStream();
-        setShowThankYouModal(true);
-      } else {
-        setStep("camera");
-      }
+      if (newRemaining <= 0) { setPhotoLimitReached(true); stopStream(); setShowThankYouModal(true); }
+      else setStep("camera");
     } catch (e) {
       console.error(e);
-      if (!photoLimitReached) {
-        setError(e instanceof Error ? e.message : "Failed to upload photo.");
-      }
+      if (!photoLimitReached) setError(e instanceof Error ? e.message : "Failed to upload photo.");
     } finally {
       setUploading(false);
       setUploadRetrying(false);
     }
   };
 
-  // Kick off retry indicator after a short delay
   useEffect(() => {
     if (!uploading) { setUploadRetrying(false); return; }
     const t = setTimeout(() => setUploadRetrying(true), 2500);
     return () => clearTimeout(t);
   }, [uploading]);
 
-  // ---------------------------------------------------------------------------
-  // Render helpers
-  // ---------------------------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black px-4 py-10 text-zinc-50 sm:px-6">
-        <p className="text-sm text-zinc-400">Loading event…</p>
-      </div>
-    );
-  }
-
-  if (error && !event) {
-    return (
-      <div className="min-h-screen bg-black px-4 py-10 text-zinc-50 sm:px-6">
-        <p className="text-sm text-red-400">
-          {error ?? "This event could not be found."}
-        </p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Ask the host to confirm you scanned the right QR code.
-        </p>
-      </div>
-    );
-  }
-
-  if (!event) {
-    return (
-      <div className="min-h-screen bg-black px-4 py-10 text-zinc-50 sm:px-6">
-        <p className="text-sm text-red-400">This event could not be found.</p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Ask the host to confirm you scanned the right QR code.
-        </p>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-[#888]">Loading event…</p></div>;
+  if (error && !event) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-red-500">{error}</p></div>;
+  if (!event) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-red-500">Event not found.</p></div>;
 
   const limitReached = photoLimitReached || (remaining !== null && remaining <= 0);
 
-  return (
-    <div className="min-h-screen bg-black text-zinc-50">
-      <main className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-6">
-        {/* Header */}
-        <header className="mb-4 flex items-center justify-between">
+  // ── CAMERA VIEW (dark) ──
+  if (step === "camera" || step === "preview") {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        {/* Camera header */}
+        <div className="flex items-center justify-between px-[15px] py-2 border-b border-[#1A1A1A]">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-              Event camera
-            </p>
-            <h1 className="text-base font-semibold">{event.name}</h1>
-            <p className="text-xs text-zinc-500">
-              {event.date}
-              {event.startTime && event.endTime
-                ? ` • ${event.startTime}–${event.endTime}`
-                : event.startTime
-                  ? ` • from ${event.startTime}`
-                  : ""}{" "}
-              • {event.photoLimitPerGuest} photos per guest
-            </p>
+            <p className="text-[8px] font-[700] tracking-[0.18em] uppercase text-[#555]">Now Shooting</p>
+            <p className="text-[12px] font-[800] text-white">{event.name}</p>
           </div>
-          <Link
-            href={`/dashboard/events/${event.id}`}
-            className="text-[11px] text-zinc-500 underline-offset-4 hover:text-zinc-200 hover:underline"
-          >
-            Host view
-          </Link>
-        </header>
-
-        {event.coverImageUrl && (
-          <div className="mb-3 overflow-hidden rounded-xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={event.coverImageUrl} alt={event.name} className="h-32 w-full object-cover" />
-          </div>
-        )}
-
-        {event.description && (
-          <p className="mb-4 text-xs text-zinc-400">{event.description}</p>
-        )}
-
-        <div className="mb-3 flex items-center justify-between text-xs text-zinc-400">
-          <span>
-            {limitReached
-              ? "Photo limit reached for this device."
-              : remaining !== null
-                ? `${remaining} photo${remaining === 1 ? "" : "s"} left`
-                : null}
+          <span className="bg-[#FF3C00] text-white text-[10px] font-[800] rounded-[4px] px-[8px] py-[3px]">
+            {remaining ?? 0} LEFT
           </span>
-          <span>No app • No login</span>
         </div>
 
-        <div className="flex-1 rounded-3xl border border-zinc-800 bg-zinc-900/80 p-3">
-          {/* ---- Camera permission denied ---- */}
-          {permissionDenied && (
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
-              <div className="rounded-full border border-red-500/30 bg-red-500/10 p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-red-400">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <line x1="2" y1="2" x2="22" y2="22"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-zinc-100">Camera access denied</p>
-                <p className="mt-1 text-xs text-zinc-400">
-                  To take photos, allow camera access in your browser settings.
-                </p>
-              </div>
-              <div className="w-full space-y-2 text-left">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">How to enable</p>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 space-y-2 text-xs text-zinc-400">
-                  <p><span className="font-medium text-zinc-200">iOS Safari:</span> Settings → Safari → Camera → Allow</p>
-                  <p><span className="font-medium text-zinc-200">Android Chrome:</span> Tap the lock icon in the address bar → Camera → Allow</p>
-                  <p><span className="font-medium text-zinc-200">Desktop Chrome:</span> Click the camera icon in the address bar → Allow</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => startCamera()}
-                className="w-full rounded-full bg-zinc-50 px-6 py-2.5 text-sm font-medium text-black hover:bg-zinc-200"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-
-          {/* ---- Intro ---- */}
-          {!permissionDenied && step === "intro" && (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-sm text-zinc-300">
-              <p>When you&apos;re ready, open the camera to start shooting.</p>
-              <button
-                type="button"
-                onClick={() => startCamera()}
-                disabled={limitReached}
-                className="rounded-full bg-zinc-50 px-6 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:bg-zinc-500"
-              >
-                {limitReached ? "Photo limit reached" : "Open camera"}
-              </button>
-            </div>
-          )}
-
-          {/* ---- Camera ---- */}
-          {/* Video element is always mounted so videoRef is available when startCamera runs */}
-          <div className={!permissionDenied && step === "camera" ? "flex h-full flex-col justify-between" : "hidden"}>
-            {/* Video with filter dropdown overlay */}
-            <div className="relative mb-3 aspect-[3/4] overflow-hidden rounded-2xl bg-black">
+        {step === "camera" && (
+          <>
+            {/* Viewfinder */}
+            <div className="relative mx-3 mt-[10px] aspect-[3/4] rounded-[8px] bg-[#111] border border-[#1A1A1A] overflow-hidden">
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video
                 ref={videoRef}
                 playsInline
-                className="h-full w-full object-cover transition-all duration-200"
+                className="h-full w-full object-cover"
                 style={{ filter: FILTERS[activeFilter].css || undefined }}
               />
-
-              {/* Filter dropdown — bottom-left of video */}
-              {videoReady && (
-                <div ref={filterMenuRef} className="absolute bottom-2 left-2">
-                  {filterOpen && (
-                    <div className="absolute bottom-full left-0 mb-1 flex flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-sm">
-                      {FILTER_KEYS.map((key) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => { setActiveFilter(key); setFilterOpen(false); }}
-                          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                            activeFilter === key
-                              ? "bg-zinc-50 text-black"
-                              : "text-zinc-300 hover:bg-zinc-800"
-                          }`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${activeFilter === key ? "bg-black" : "bg-transparent"}`} />
-                          {FILTERS[key].label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setFilterOpen((o) => !o)}
-                    className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm hover:bg-black/70"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M3 12h.01M12 3v.01M21 12h-.01M12 21v-.01M5.6 5.6l.01.01M18.4 5.6l-.01.01M5.6 18.4l.01-.01M18.4 18.4l-.01-.01" />
-                    </svg>
-                    {FILTERS[activeFilter].label}
-                  </button>
-                </div>
-              )}
+              {/* Rule of thirds */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/[0.08]" />
+                <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/[0.08]" />
+                <div className="absolute top-1/3 left-0 right-0 h-px bg-white/[0.08]" />
+                <div className="absolute top-2/3 left-0 right-0 h-px bg-white/[0.08]" />
+              </div>
+              {/* Corner brackets */}
+              <div className="absolute top-[10px] left-[10px] w-[14px] h-[14px] border-t-2 border-l-2 border-[#FF3C00]" />
+              <div className="absolute top-[10px] right-[10px] w-[14px] h-[14px] border-t-2 border-r-2 border-[#FF3C00]" />
+              <div className="absolute bottom-[10px] left-[10px] w-[14px] h-[14px] border-b-2 border-l-2 border-[#FF3C00]" />
+              <div className="absolute bottom-[10px] right-[10px] w-[14px] h-[14px] border-b-2 border-r-2 border-[#FF3C00]" />
+              {/* Center focus */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[46px] h-[46px] rounded-full border border-white/20" />
+              {/* Film tag */}
+              <div className="absolute bottom-[10px] left-[10px] bg-black/50 rounded-[2px] px-[5px] py-[2px]">
+                <span className="text-[8px] font-mono tracking-[0.06em] text-[#FF3C00]">DDC-36</span>
+              </div>
+              {/* Exposure */}
+              <div className="absolute bottom-[10px] right-[10px]">
+                <span className="text-[8px] font-mono tracking-[0.04em] text-[#444]">f/1.8 · ISO400</span>
+              </div>
             </div>
 
-            {/* Bottom controls: Flip — Shutter — Flash */}
-            <div className="grid grid-cols-3 items-center pb-2 pt-1">
-              <div className="flex justify-center">
-                {videoReady && (
-                  <button
-                    type="button"
-                    onClick={flipCamera}
-                    title="Flip camera"
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800/80 text-white hover:bg-zinc-700"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-                      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-                      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-                      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="m15 9-3-3-3 3" />
-                    </svg>
-                  </button>
-                )}
+            {/* Meta row */}
+            <div className="flex border-t border-b border-[#1A1A1A] mx-0 mt-2">
+              <div className="flex-1 text-center py-[8px]">
+                <p className="text-[11px] font-[800] text-white">{FILTERS[activeFilter].label}</p>
+                <p className="text-[7px] font-[700] tracking-[0.12em] uppercase text-[#555]">Filter</p>
               </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={capturePhoto}
-                  disabled={limitReached || !videoReady}
-                  className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-zinc-200 bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-500 disabled:bg-zinc-600"
-                >
-                  <span className="h-10 w-10 rounded-full bg-zinc-900" />
-                </button>
-                {!videoReady && (
-                  <p className="text-[11px] text-zinc-500">Starting camera…</p>
-                )}
+              <div className="flex-1 text-center py-[8px] border-l border-r border-[#1A1A1A]">
+                <p className="text-[11px] font-[800] text-white">{photosTaken} / {event.photoLimitPerGuest}</p>
+                <p className="text-[7px] font-[700] tracking-[0.12em] uppercase text-[#555]">Shots Used</p>
               </div>
+              <div className="flex-1 text-center py-[8px]">
+                <p className={`text-[11px] font-[800] ${flashOn ? "text-[#FF3C00]" : "text-white"}`}>{flashOn ? "ON" : "OFF"}</p>
+                <p className="text-[7px] font-[700] tracking-[0.12em] uppercase text-[#555]">Flash</p>
+              </div>
+            </div>
 
-              <div className="flex justify-center">
-                {videoReady && torchSupported && (
-                  <button
-                    type="button"
-                    onClick={toggleFlash}
-                    title={flashOn ? "Flash on" : "Flash off"}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full border ${
-                      flashOn
-                        ? "border-zinc-50 bg-zinc-50 text-black"
-                        : "border-zinc-700 bg-zinc-800/80 text-white hover:bg-zinc-700"
-                    }`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+            {/* Controls */}
+            <div className="flex items-center justify-between px-[22px] py-3">
+              <button type="button" onClick={flipCamera} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#1A1A1A] border border-[#333]">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-white">
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={capturePhoto}
+                disabled={limitReached || !videoReady}
+                className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#FF3C00] border-[3px] border-[#CC3000] disabled:opacity-40"
+              >
+                <span className="h-[46px] w-[46px] rounded-full bg-[#E83000]" />
+              </button>
+              <div className="w-[34px] h-[34px] flex items-center justify-center">
+                {torchSupported && (
+                  <button type="button" onClick={toggleFlash} className={`flex h-[34px] w-[34px] items-center justify-center rounded-full border ${flashOn ? "bg-[#FF3C00] border-[#FF3C00]" : "bg-[#1A1A1A] border-[#333]"}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 text-white">
                       <path d="M13 2L4.5 13.5H11L10 22L20.5 10.5H14L13 2Z" />
                     </svg>
                   </button>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* ---- Preview ---- */}
-          {!permissionDenied && step === "preview" && previewDataUrl && (
-            <div className="flex h-full flex-col justify-between gap-3">
-              <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewDataUrl}
-                  alt="Preview"
-                  className="h-full w-full object-cover"
-                />
-                {activeFilter !== "none" && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] text-zinc-300 backdrop-blur-sm">
-                    {FILTERS[activeFilter].label}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-3 pb-1 pt-2">
-                <p className="text-xs text-zinc-400">
-                  Happy with this one?
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={resetPreview}
-                    disabled={uploading}
-                    className="flex-1 rounded-full border border-zinc-700 px-4 py-2 text-xs font-medium text-zinc-100 disabled:opacity-50"
-                  >
-                    Retake
-                  </button>
-                  <button
-                    type="button"
-                    onClick={uploadPhoto}
-                    disabled={uploading}
-                    className="flex-1 rounded-full bg-zinc-50 px-4 py-2 text-xs font-medium text-black disabled:cursor-not-allowed disabled:bg-zinc-400"
-                  >
-                    {uploading
-                      ? uploadRetrying
-                        ? "Retrying…"
-                        : "Uploading…"
-                      : "Use photo"}
-                  </button>
-                </div>
-                {error && (
-                  <p className="text-xs text-red-400">{error}</p>
-                )}
-              </div>
+            {/* Filter strip */}
+            <div className="flex gap-[5px] px-3 pb-3">
+              {FILTER_KEYS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveFilter(key)}
+                  className={`flex-1 py-[7px] rounded-[4px] text-[9px] font-[800] uppercase tracking-[0.04em] ${
+                    activeFilter === key ? "bg-[#FF3C00] text-white" : "bg-[#1A1A1A] text-[#555]"
+                  }`}
+                >
+                  {FILTERS[key].label}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-
-        {error && step !== "preview" && !permissionDenied && (
-          <p className="mt-3 text-xs text-red-400">
-            {error} Try again or ask the host for help.
-          </p>
+          </>
         )}
-      </main>
 
-      {/* Thank-you modal */}
-      {showThankYouModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-8 backdrop-blur-sm sm:items-center sm:pb-0">
-          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-8 text-center shadow-2xl">
-            <div className="mb-4 text-5xl">🎉</div>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-50">
-              Thank you!
-            </h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              You&apos;ve used all your photos for{" "}
-              <span className="font-medium text-zinc-200">{event?.name}</span>.
-              Your shots are in the gallery.
-            </p>
+        {/* Preview step */}
+        {step === "preview" && previewDataUrl && (
+          <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
+            <div className="relative aspect-[3/4] overflow-hidden rounded-[8px] bg-[#111]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewDataUrl} alt="Preview" className="h-full w-full object-cover" />
+              {activeFilter !== "none" && (
+                <span className="absolute bottom-2 right-2 rounded-[4px] bg-black/60 px-2 py-[2px] text-[9px] text-white">{FILTERS[activeFilter].label}</span>
+              )}
+            </div>
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] text-[#888]">Happy with this one?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={resetPreview}
+                  disabled={uploading}
+                  className="flex-1 rounded-[6px] border-[1.5px] border-white text-white py-[9px] text-[10px] font-[700] uppercase tracking-[0.08em] disabled:opacity-50"
+                >
+                  Retake
+                </button>
+                <button
+                  type="button"
+                  onClick={uploadPhoto}
+                  disabled={uploading}
+                  className="flex-1 rounded-[6px] bg-[#FF3C00] text-white py-[10px] text-[10px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
+                >
+                  {uploading ? (uploadRetrying ? "Retrying…" : "Uploading…") : "Use photo"}
+                </button>
+              </div>
+              {error && <p className="text-[10px] text-red-400">{error}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Hidden video for ref */}
+        {step === "preview" && (
+          <video ref={videoRef} playsInline className="hidden" />
+        )}
+
+        {/* Thank-you modal */}
+        {showThankYouModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-sm rounded-[8px] bg-white text-black p-6 text-center">
+              <h2 className="text-[22px] font-[800] tracking-[-0.02em]">Thank you!</h2>
+              <p className="mt-2 text-[10px] text-[#555] leading-[1.6]">
+                You&apos;ve used all your photos for <span className="font-[700] text-black">{event?.name}</span>. Your shots are in the gallery.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push(`/e/${id}/thanks`)}
+                className="mt-4 w-full rounded-[6px] bg-black text-white py-[11px] text-[10px] font-[800] uppercase tracking-[0.08em]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── INTRO VIEW (light) ──
+  return (
+    <div className="min-h-screen bg-white text-black">
+      {/* Nav */}
+      <nav className="flex items-center justify-between px-[15px] py-2 border-b border-black">
+        <span className="text-[14px] font-[800] tracking-[0.18em]">
+          DD<span className="text-[#FF3C00]">C</span>
+        </span>
+        <span className="text-[9px] font-[700] text-[#888] tracking-[0.06em] uppercase">No app · No login</span>
+      </nav>
+
+      {/* Event info card */}
+      <section className="bg-black text-white px-[15px] py-[14px] border-b border-black">
+        <Overline className="text-[#555]">You&apos;re Invited to Shoot</Overline>
+        <h1 className="text-[22px] font-[800] tracking-[-0.02em] leading-tight">{event.name}</h1>
+        <p className="text-[9px] text-[#555] mt-0.5">
+          {event.date}
+          {event.startTime && event.endTime ? ` · ${event.startTime}–${event.endTime}` : ""}
+        </p>
+      </section>
+
+      {/* Stat grid */}
+      <StatGrid
+        stats={[
+          { value: remaining ?? event.photoLimitPerGuest, label: "Shots Left", accent: true },
+          { value: photosTaken, label: "Taken" },
+        ]}
+      />
+
+      {/* Permission denied state */}
+      {permissionDenied && (
+        <section className="px-[15px] py-4 border-b border-black">
+          <p className="text-[10px] font-[700] text-red-500 mb-2">Camera access denied</p>
+          <p className="text-[10px] text-[#555] leading-[1.6] mb-3">
+            To take photos, allow camera access in your browser settings.
+          </p>
+          <button type="button" onClick={() => startCamera()} className="w-full rounded-[6px] bg-black text-white py-[11px] text-[10px] font-[800] uppercase tracking-[0.08em]">
+            Try again
+          </button>
+        </section>
+      )}
+
+      {/* Before you shoot */}
+      {!permissionDenied && (
+        <>
+          <section className="px-[15px] py-[13px] border-b border-black">
+            <Overline className="mb-2">Before You Shoot</Overline>
+            <div className="space-y-3">
+              {[
+                { n: "1", text: "Allow camera access when prompted by your browser.", accent: false },
+                { n: "2", text: `Take up to ${event.photoLimitPerGuest} photos. Used shots cannot be undone.`, accent: false },
+                { n: "3", text: "Close the tab when done — photos auto-save to the gallery.", accent: true },
+              ].map((s) => (
+                <div key={s.n} className="flex items-start gap-[10px]">
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-[11px] font-[800] text-white ${s.accent ? "bg-[#FF3C00]" : "bg-black"}`}>
+                    {s.n}
+                  </span>
+                  <p className="text-[10px] text-[#555] leading-[1.5]">{s.text}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* CTA */}
+          <section className="px-[15px] py-[14px]">
             <button
               type="button"
-              onClick={() => router.push(`/e/${id}/thanks`)}
-              className="mt-6 w-full rounded-full bg-zinc-50 py-3 text-sm font-semibold text-black hover:bg-zinc-200"
+              onClick={() => startCamera()}
+              disabled={limitReached}
+              className="w-full rounded-[6px] bg-[#FF3C00] text-white py-[14px] text-[13px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
             >
-              Close
+              {limitReached ? "Photo limit reached" : "Open camera →"}
             </button>
-          </div>
-        </div>
+            <p className="text-center text-[9px] text-[#AAA] mt-2">
+              {event.photoLimitPerGuest} shots · Moderation {event.moderationEnabled ? "on" : "off"} · No account needed
+            </p>
+          </section>
+        </>
+      )}
+
+      {error && step === "intro" && !permissionDenied && (
+        <p className="px-[15px] text-[10px] text-red-500">{error}</p>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Overline from "@/app/components/Overline";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -31,7 +32,6 @@ export default function SignupPage() {
         setError(json.error ?? "Failed to create account.");
         return;
       }
-      // Auto sign-in after signup
       const result = await signIn("credentials", {
         email: form.email,
         password: form.password,
@@ -56,18 +56,18 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen bg-white text-black flex items-center justify-center px-[15px]">
+      <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
-          <p className="text-sm text-zinc-400">Start hosting events in minutes</p>
+          <h1 className="text-[22px] font-[800] tracking-[-0.02em]">Create an account</h1>
+          <p className="text-[10px] text-[#888]">Start hosting events in minutes</p>
         </div>
 
         <button
           type="button"
           onClick={handleGoogle}
           disabled={googleLoading}
-          className="flex w-full items-center justify-center gap-3 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-100 hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-3 rounded-[6px] border-[1.5px] border-black bg-white px-4 py-[10px] text-[10px] font-[700] tracking-[0.08em] uppercase text-black disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -79,36 +79,36 @@ export default function SignupPage() {
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-zinc-800" />
-          <span className="text-[11px] text-zinc-500">or</span>
-          <div className="h-px flex-1 bg-zinc-800" />
+          <div className="h-px flex-1 bg-[#E0E0E0]" />
+          <span className="text-[9px] text-[#888]">or</span>
+          <div className="h-px flex-1 bg-[#E0E0E0]" />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Name</label>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1">
+            <Overline>Name</Overline>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               required
               placeholder="Your name"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Email</label>
+          <div className="space-y-1">
+            <Overline>Email</Overline>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
               required
               placeholder="you@example.com"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Password</label>
+          <div className="space-y-1">
+            <Overline>Password</Overline>
             <input
               type="password"
               value={form.password}
@@ -116,37 +116,37 @@ export default function SignupPage() {
               required
               minLength={8}
               placeholder="At least 8 characters"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Confirm password</label>
+          <div className="space-y-1">
+            <Overline>Confirm password</Overline>
             <input
               type="password"
               value={form.confirm}
               onChange={(e) => setForm((p) => ({ ...p, confirm: e.target.value }))}
               required
               placeholder="Repeat your password"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none placeholder:text-[#888] focus:border-black focus:bg-white"
             />
           </div>
 
           {error && (
-            <p className="text-xs font-medium text-red-400">{error}</p>
+            <p className="text-[10px] font-[600] text-red-500">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-zinc-50 px-4 py-2.5 text-sm font-medium text-black hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-zinc-400"
+            className="w-full rounded-[6px] bg-black text-white px-4 py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
 
-        <p className="text-center text-xs text-zinc-500">
+        <p className="text-center text-[10px] text-[#888]">
           Already have an account?{" "}
-          <Link href="/auth/login" className="text-zinc-300 underline-offset-4 hover:underline">
+          <Link href="/auth/login" className="text-black underline underline-offset-4">
             Sign in
           </Link>
         </p>

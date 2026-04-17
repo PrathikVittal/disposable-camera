@@ -32,7 +32,6 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
   const hourTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const minuteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Sync internal state when prop changes
   useEffect(() => {
     if (value) {
       setHour(value.split(":")[0]);
@@ -40,7 +39,6 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
     }
   }, [value]);
 
-  // Scroll columns into position each time the popover opens
   useEffect(() => {
     if (!open) return;
     const hIdx = HOURS.indexOf(hour);
@@ -51,7 +49,6 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
     });
   }, [open, hour, minute]);
 
-  // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -113,25 +110,22 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-sm text-zinc-50 outline-none focus:border-zinc-400"
+        className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-left text-[10px] text-black outline-none focus:border-black focus:bg-white"
       >
-        {value || <span className="text-zinc-500">{placeholder}</span>}
+        {value || <span className="text-[#888]">{placeholder}</span>}
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-          {/* Scroll columns */}
+        <div className="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-[6px] border border-black bg-white">
           <div className="relative flex items-center px-3 pt-2 pb-1">
-            {/* Center highlight bar */}
             <div
-              className="pointer-events-none absolute inset-x-3 rounded-lg bg-zinc-700/50"
+              className="pointer-events-none absolute inset-x-3 rounded-[4px] bg-[#F5F5F5]"
               style={{
                 top: `calc(${ITEM_HEIGHT}px + 8px)`,
                 height: ITEM_HEIGHT,
               }}
             />
 
-            {/* Hours */}
             <div
               ref={hourRef}
               onScroll={handleHourScroll}
@@ -144,7 +138,7 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
                   key={h}
                   onClick={() => scrollToHour(h)}
                   className={`flex cursor-pointer select-none items-center justify-center [scroll-snap-align:center] text-sm font-medium transition-colors ${
-                    h === hour ? "text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
+                    h === hour ? "text-black" : "text-[#888] hover:text-[#444]"
                   }`}
                   style={{ height: ITEM_HEIGHT }}
                 >
@@ -154,9 +148,8 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
               <div style={{ height: ITEM_HEIGHT }} />
             </div>
 
-            <span className="relative z-10 px-1 text-sm font-bold text-zinc-300">:</span>
+            <span className="relative z-10 px-1 text-sm font-bold text-black">:</span>
 
-            {/* Minutes */}
             <div
               ref={minuteRef}
               onScroll={handleMinuteScroll}
@@ -169,7 +162,7 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
                   key={m}
                   onClick={() => scrollToMinute(m)}
                   className={`flex cursor-pointer select-none items-center justify-center [scroll-snap-align:center] text-sm font-medium transition-colors ${
-                    m === minute ? "text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
+                    m === minute ? "text-black" : "text-[#888] hover:text-[#444]"
                   }`}
                   style={{ height: ITEM_HEIGHT }}
                 >
@@ -180,19 +173,18 @@ export default function TimePicker({ value, onChange, placeholder = "--:--" }: P
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 border-t border-zinc-800 p-2">
+          <div className="flex gap-2 border-t border-[#E0E0E0] p-2">
             <button
               type="button"
               onClick={handleClear}
-              className="flex-1 rounded-full border border-zinc-700 py-1.5 text-xs font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+              className="flex-1 rounded-[6px] border-[1.5px] border-black py-[6px] text-[10px] font-[700] text-black"
             >
               Clear
             </button>
             <button
               type="button"
               onClick={handleDone}
-              className="flex-1 rounded-full bg-zinc-50 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200"
+              className="flex-1 rounded-[6px] bg-black py-[6px] text-[10px] font-[800] text-white"
             >
               Done
             </button>
