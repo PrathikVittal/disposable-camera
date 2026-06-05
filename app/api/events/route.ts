@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     photoLimitPerGuest,
     startTime,
     endTime,
+    timezone,
     moderationEnabled,
   } = body ?? {};
 
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
     photoLimitPerGuest: limit,
     startTime,
     endTime,
+    timezone,
     moderationEnabled: Boolean(moderationEnabled),
   });
 

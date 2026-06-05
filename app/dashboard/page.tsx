@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import type { Event } from "@/lib/types";
 import TimePicker from "@/app/components/TimePicker";
 import Overline from "@/app/components/Overline";
+import { getTimezones, browserTimezone } from "@/lib/timezones";
 
 type CreateEventForm = {
   name: string;
@@ -14,8 +15,11 @@ type CreateEventForm = {
   photoLimitPerGuest: number;
   startTime: string;
   endTime: string;
+  timezone: string;
   moderationEnabled: boolean;
 };
+
+const TIMEZONES = getTimezones();
 
 const MAX_COVER_DIMENSION = 1200;
 
@@ -75,8 +79,15 @@ export default function DashboardPage() {
     photoLimitPerGuest: 10,
     startTime: "",
     endTime: "",
+    timezone: "",
     moderationEnabled: false,
   });
+
+  // Default the timezone to the host's browser timezone (set after mount to
+  // avoid an SSR/client hydration mismatch on the <select> value).
+  useEffect(() => {
+    setForm((prev) => (prev.timezone ? prev : { ...prev, timezone: browserTimezone() }));
+  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -151,6 +162,7 @@ export default function DashboardPage() {
         photoLimitPerGuest: 10,
         startTime: "",
         endTime: "",
+        timezone: browserTimezone(),
         moderationEnabled: false,
       });
       setCoverDataUrl("");
@@ -240,6 +252,21 @@ export default function DashboardPage() {
                 placeholder="--:--"
               />
             </div>
+          </div>
+
+          <div>
+            <Overline>Timezone</Overline>
+            <select
+              name="timezone"
+              value={form.timezone}
+              onChange={(e) => setForm((prev) => ({ ...prev, timezone: e.target.value }))}
+              className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] text-black outline-none focus:border-black focus:bg-white"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[8px] text-[#888]">Start and end times are interpreted in this timezone.</p>
           </div>
 
           <div>

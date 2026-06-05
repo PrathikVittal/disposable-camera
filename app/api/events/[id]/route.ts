@@ -49,6 +49,7 @@ export async function PATCH(
         : undefined,
     startTime: body.startTime,
     endTime: body.endTime,
+    timezone: typeof body.timezone === "string" ? body.timezone : undefined,
     moderationEnabled:
       typeof body.moderationEnabled === "boolean"
         ? body.moderationEnabled

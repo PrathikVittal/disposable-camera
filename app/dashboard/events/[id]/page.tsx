@@ -9,6 +9,9 @@ import QRCode, { type QRCodeHandle } from "@/app/components/QRCode";
 import TimePicker from "@/app/components/TimePicker";
 import Overline from "@/app/components/Overline";
 import StatGrid from "@/app/components/StatGrid";
+import { getTimezones, browserTimezone } from "@/lib/timezones";
+
+const TIMEZONES = getTimezones();
 
 type EventWithPhotos = {
   event: Event;
@@ -21,6 +24,7 @@ type EditForm = {
   description: string;
   startTime: string;
   endTime: string;
+  timezone: string;
   photoLimitPerGuest: number;
   moderationEnabled: boolean;
 };
@@ -301,6 +305,7 @@ export default function EventDetailPage({
       description: data.event.description ?? "",
       startTime: data.event.startTime ?? "",
       endTime: data.event.endTime ?? "",
+      timezone: data.event.timezone || browserTimezone(),
       photoLimitPerGuest: data.event.photoLimitPerGuest,
       moderationEnabled: data.event.moderationEnabled,
     });
@@ -698,6 +703,19 @@ export default function EventDetailPage({
                   <Overline>Ends at</Overline>
                   <TimePicker value={editForm.endTime} onChange={(v) => setEditForm((p) => p ? { ...p, endTime: v } : p)} placeholder="--:--" />
                 </div>
+              </div>
+              <div>
+                <Overline>Timezone</Overline>
+                <select
+                  name="timezone"
+                  value={editForm.timezone}
+                  onChange={(e) => setEditForm((p) => (p ? { ...p, timezone: e.target.value } : p))}
+                  className="w-full rounded-[6px] border border-[#E0E0E0] bg-[#F5F5F5] px-[10px] py-2 text-[10px] outline-none focus:border-black focus:bg-white"
+                >
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Overline>Description</Overline>

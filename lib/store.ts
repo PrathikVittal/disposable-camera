@@ -15,6 +15,7 @@ export async function createEvent(input: {
   photoLimitPerGuest: number;
   startTime?: string;
   endTime?: string;
+  timezone?: string;
   moderationEnabled: boolean;
 }): Promise<Event> {
   const event = await prisma.event.create({
@@ -28,6 +29,7 @@ export async function createEvent(input: {
       photoLimitPerGuest: input.photoLimitPerGuest,
       startTime: input.startTime ?? null,
       endTime: input.endTime ?? null,
+      timezone: input.timezone || "UTC",
       moderationEnabled: input.moderationEnabled,
     },
   });
@@ -65,6 +67,7 @@ export async function updateEvent(
       | "photoLimitPerGuest"
       | "startTime"
       | "endTime"
+      | "timezone"
       | "moderationEnabled"
     >
   >,
@@ -82,6 +85,7 @@ export async function updateEvent(
         }),
         ...(partial.startTime !== undefined && { startTime: partial.startTime }),
         ...(partial.endTime !== undefined && { endTime: partial.endTime }),
+        ...(partial.timezone !== undefined && { timezone: partial.timezone }),
         ...(partial.moderationEnabled !== undefined && {
           moderationEnabled: partial.moderationEnabled,
         }),
@@ -186,6 +190,7 @@ function toEvent(row: {
   photoLimitPerGuest: number;
   startTime: string | null;
   endTime: string | null;
+  timezone: string;
   moderationEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -201,6 +206,7 @@ function toEvent(row: {
     photoLimitPerGuest: row.photoLimitPerGuest,
     startTime: row.startTime ?? undefined,
     endTime: row.endTime ?? undefined,
+    timezone: row.timezone,
     moderationEnabled: row.moderationEnabled,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

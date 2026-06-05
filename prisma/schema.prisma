@@ -30,6 +30,7 @@ model Event {
   photoLimitPerGuest Int
   startTime          String?
   endTime            String?
+  timezone           String   @default("UTC")
   moderationEnabled  Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

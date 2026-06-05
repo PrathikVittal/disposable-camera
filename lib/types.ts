@@ -9,6 +9,7 @@ export type Event = {
   photoLimitPerGuest: number;
   startTime?: string;
   endTime?: string;
+  timezone: string;
   moderationEnabled: boolean;
   createdAt: string;
   updatedAt: string;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Event } from "@/lib/types";
 import Overline from "@/app/components/Overline";
 import StatGrid from "@/app/components/StatGrid";
+import { getEventWindow, type WindowState } from "@/lib/eventWindow";
 
 type FilterKey = "none" | "bw" | "vintage" | "film";
 
@@ -29,6 +30,30 @@ function getOrCreateGuestSessionId(eventId: string) {
   return gid;
 }
 
+// Read the guest's session id without minting a new one. Returns null if the
+// guest hasn't uploaded anything yet (no id created).
+function readGuestSessionId(eventId: string) {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(`ddc_guest_session_${eventId}`);
+}
+
+// Local cache of how many photos this guest has taken — lets the UI show the
+// right "shots left" instantly on refresh, before the server count arrives.
+const countCacheKey = (eventId: string) => `ddc_guest_count_${eventId}`;
+
+function readCachedCount(eventId: string): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(countCacheKey(eventId));
+  if (raw === null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function writeCachedCount(eventId: string, count: number) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(countCacheKey(eventId), String(count));
+}
+
 async function uploadWithRetry(url: string, body: string, maxAttempts = 3): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -50,6 +75,9 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [windowState, setWindowState] = useState<WindowState | null>(null);
+  const [startsAt, setStartsAt] = useState<Date | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -75,7 +103,44 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
         if (!res.ok) { const json = await res.json(); throw new Error(json.error ?? "Event not found"); }
         const json: EventResponse = await res.json();
         setEvent(json.event);
-        setRemaining(json.event.photoLimitPerGuest);
+
+        // ── Time-window gate ──
+        const win = getEventWindow(json.event);
+        if (win.state === "ended") {
+          setRedirecting(true);
+          router.replace(`/e/${id}/ended`);
+          return;
+        }
+        setWindowState(win.state);
+        setStartsAt(win.startsAt);
+
+        // ── Photo count: instant cache, then authoritative server value ──
+        const limit = json.event.photoLimitPerGuest;
+        const cached = readCachedCount(json.event.id);
+        if (cached !== null) {
+          setPhotosTaken(cached);
+          setRemaining(Math.max(0, limit - cached));
+        } else {
+          setRemaining(limit);
+        }
+
+        const gid = readGuestSessionId(json.event.id);
+        if (gid) {
+          try {
+            const cRes = await fetch(`/api/events/${json.event.id}/photos?guestSessionId=${encodeURIComponent(gid)}`);
+            if (cRes.ok) {
+              const { count } = await cRes.json();
+              if (typeof count === "number") {
+                setPhotosTaken(count);
+                setRemaining(Math.max(0, limit - count));
+                writeCachedCount(json.event.id, count);
+              }
+            }
+          } catch (e) {
+            // Non-fatal: fall back to cached/limit value already set above.
+            console.error("Failed to rehydrate photo count", e);
+          }
+        }
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "Failed to load event.");
@@ -84,7 +149,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       }
     };
     fetchEvent();
-  }, [id]);
+  }, [id, router]);
 
   const stopStream = () => {
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
@@ -172,12 +237,26 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       const res = await uploadWithRetry(`/api/events/${event.id}/photos`, JSON.stringify({ dataUrl: previewDataUrl, guestSessionId }), 3);
       if (!res.ok) {
         const json = await res.json();
-        if (res.status === 403) { setPhotoLimitReached(true); stopStream(); setShowThankYouModal(true); }
+        // Event ran out mid-session → send the guest to the warm ending page.
+        if (res.status === 403 && json.reason === "event_ended") {
+          stopStream();
+          setRedirecting(true);
+          router.replace(`/e/${id}/ended`);
+          return;
+        }
+        // Limit reached → thank-you flow (ignore the not-started edge case).
+        if (res.status === 403 && json.reason !== "event_not_started") {
+          setPhotoLimitReached(true);
+          stopStream();
+          setShowThankYouModal(true);
+        }
         throw new Error(json.error ?? "Failed to upload photo");
       }
       const newRemaining = remaining - 1;
+      const newTaken = photosTaken + 1;
       setRemaining(newRemaining);
-      setPhotosTaken((p) => p + 1);
+      setPhotosTaken(newTaken);
+      writeCachedCount(event.id, newTaken);
       setPreviewDataUrl(null);
       if (newRemaining <= 0) { setPhotoLimitReached(true); stopStream(); setShowThankYouModal(true); }
       else setStep("camera");
@@ -196,9 +275,44 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
     return () => clearTimeout(t);
   }, [uploading]);
 
-  if (loading) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-[#888]">Loading event…</p></div>;
+  if (loading || redirecting) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-[#888]">Loading event…</p></div>;
   if (error && !event) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-red-500">{error}</p></div>;
   if (!event) return <div className="min-h-screen bg-white px-[15px] py-10"><p className="text-[10px] text-red-500">Event not found.</p></div>;
+
+  // ── BEFORE-START VIEW — event isn't open yet, block the whole page ──
+  if (windowState === "before") {
+    const startLabel = startsAt
+      ? startsAt.toLocaleString(undefined, {
+          timeZone: event.timezone || undefined,
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "";
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-[15px] text-center text-black">
+        <div className="max-w-sm space-y-5">
+          <span className="text-[14px] font-[800] tracking-[0.18em]">
+            DD<span className="text-[#FF3C00]">C</span>
+          </span>
+          <h1 className="text-[26px] font-[800] tracking-[-0.02em] leading-tight">
+            Not just yet.
+          </h1>
+          <p className="text-[12px] font-[700] text-black">{event.name}</p>
+          <p className="text-[10px] leading-[1.7] text-[#555]">
+            The camera opens when the event starts. Come back at the time below —
+            we&apos;ll be ready for your shots.
+          </p>
+          <div className="rounded-[6px] border border-black bg-[#F5F5F5] px-4 py-3">
+            <p className="text-[8px] font-[700] uppercase tracking-[0.12em] text-[#888]">Doors open</p>
+            <p className="mt-1 text-[11px] font-[800] text-black">{startLabel}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const limitReached = photoLimitReached || (remaining !== null && remaining <= 0);
 

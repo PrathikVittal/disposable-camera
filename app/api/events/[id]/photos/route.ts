@@ -6,6 +6,7 @@ import {
   listPhotos,
 } from "@/lib/store";
 import { uploadBase64ToS3 } from "@/lib/s3";
+import { getEventWindow } from "@/lib/eventWindow";
 
 export async function GET(
   req: NextRequest,
@@ -18,6 +19,15 @@ export async function GET(
   }
 
   const { searchParams } = new URL(req.url);
+
+  // Per-guest count — used by the guest page to rehydrate "shots remaining"
+  // after a refresh. Authoritative source of truth.
+  const guestSessionId = searchParams.get("guestSessionId");
+  if (guestSessionId) {
+    const count = await countPhotosForGuest(id, guestSessionId);
+    return NextResponse.json({ count });
+  }
+
   const status = searchParams.get("status") as
     | "pending"
     | "approved"
@@ -38,6 +48,22 @@ export async function POST(
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
+  // Enforce the event time window — uploads are only accepted while the event
+  // is open (server clock is authoritative; can't be bypassed client-side).
+  const window = getEventWindow(event);
+  if (window.state === "before") {
+    return NextResponse.json(
+      { error: "This event hasn't started yet.", reason: "event_not_started" },
+      { status: 403 },
+    );
+  }
+  if (window.state === "ended") {
+    return NextResponse.json(
+      { error: "This event has ended.", reason: "event_ended" },
+      { status: 403 },
+    );
+  }
+
   const body = await req.json();
   const { dataUrl, guestSessionId } = body ?? {};
 
@@ -51,7 +77,7 @@ export async function POST(
   const alreadyTaken = await countPhotosForGuest(event.id, guestSessionId);
   if (alreadyTaken >= event.photoLimitPerGuest) {
     return NextResponse.json(
-      { error: "Photo limit reached for this guest" },
+      { error: "Photo limit reached for this guest", reason: "limit_reached" },
       { status: 403 },
     );
   }
