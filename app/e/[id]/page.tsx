@@ -159,10 +159,6 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
   const [uploading, setUploading] = useState(false);
   const [uploadRetrying, setUploadRetrying] = useState(false);
   const [photoLimitReached, setPhotoLimitReached] = useState(false);
-  const [showThankYouModal, setShowThankYouModal] = useState(false);
-  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [step, setStep] = useState<"intro" | "preview">("intro");
   const [photosTaken, setPhotosTaken] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -205,6 +201,12 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
                 setPhotosTaken(count);
                 setRemaining(Math.max(0, limit - count));
                 writeCachedCount(json.event.id, count);
+                // Returning guest who already used every shot → thank-you page.
+                if (count >= limit) {
+                  setRedirecting(true);
+                  router.replace(`/e/${id}/thanks`);
+                  return;
+                }
               }
             }
           } catch (e) {
@@ -222,43 +224,31 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
     fetchEvent();
   }, [id, router]);
 
-  const clearPreview = () => {
-    setPreviewBlob(null);
-    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-  };
-
-  // Revoke any outstanding object URL on unmount.
-  useEffect(() => () => { setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); }, []);
-
   const openCamera = () => {
     setError(null);
     fileInputRef.current?.click();
   };
 
+  // The native OS camera already shows its own "Retake / Use Photo" confirm, so
+  // we skip a second web-side preview: process the captured photo and upload it
+  // straight away.
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-selecting the same/next shot
     if (!file) return;
     setError(null);
     setProcessing(true);
+    let blob: Blob;
     try {
-      const blob = await processCaptureToBlob(file);
-      const url = URL.createObjectURL(blob);
-      setPreviewBlob(blob);
-      setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
-      setStep("preview");
+      blob = await processCaptureToBlob(file);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Could not process that photo. Please try again.");
-    } finally {
       setProcessing(false);
+      return;
     }
-  };
-
-  const retake = () => {
-    clearPreview();
-    setStep("intro");
-    openCamera();
+    setProcessing(false);
+    await uploadBlob(blob);
   };
 
   // Handle terminal upload rejections. Returns true if the caller should stop.
@@ -270,14 +260,15 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
     }
     if (status === 403 && reason === "limit_reached") {
       setPhotoLimitReached(true);
-      setShowThankYouModal(true);
+      setRedirecting(true);
+      router.replace(`/e/${id}/thanks`);
       return true;
     }
     return false;
   };
 
-  const uploadPhoto = async () => {
-    if (!event || !previewBlob || remaining === null) return;
+  const uploadBlob = async (blob: Blob) => {
+    if (!event || remaining === null) return;
     if (remaining <= 0) { setPhotoLimitReached(true); return; }
     setUploading(true);
     setUploadRetrying(false);
@@ -299,7 +290,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       const { uploadUrl, key } = await presignRes.json();
 
       // 2. Upload the original directly to S3.
-      const putRes = await putWithRetry(uploadUrl, previewBlob, 3);
+      const putRes = await putWithRetry(uploadUrl, blob, 3);
       if (!putRes.ok) throw new Error("Failed to upload photo. Please try again.");
 
       // 3. Finalize — server makes the display + thumbnail derivatives.
@@ -320,9 +311,12 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       setRemaining(newRemaining);
       setPhotosTaken(newTaken);
       writeCachedCount(event.id, newTaken);
-      clearPreview();
-      if (newRemaining <= 0) { setPhotoLimitReached(true); setShowThankYouModal(true); }
-      else setStep("intro");
+      if (newRemaining <= 0) {
+        setPhotoLimitReached(true);
+        setRedirecting(true);
+        router.replace(`/e/${id}/thanks`);
+        return;
+      }
     } catch (e) {
       console.error(e);
       if (!photoLimitReached) setError(e instanceof Error ? e.message : "Failed to upload photo.");
@@ -378,72 +372,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
   }
 
   const limitReached = photoLimitReached || (remaining !== null && remaining <= 0);
-
-  // ── PREVIEW VIEW (dark) — review the captured shot before uploading ──
-  if (step === "preview" && previewUrl) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-[15px] py-2 border-b border-[#1A1A1A]">
-          <div>
-            <p className="text-[8px] font-[700] tracking-[0.18em] uppercase text-[#555]">Now Shooting</p>
-            <p className="text-[12px] font-[800] text-white">{event.name}</p>
-          </div>
-          <span className="bg-[#FF3C00] text-white text-[10px] font-[800] rounded-[4px] px-[8px] py-[3px]">
-            {remaining ?? 0} LEFT
-          </span>
-        </div>
-
-        <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
-          <div className="relative aspect-[3/4] overflow-hidden rounded-[8px] bg-[#111]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Preview" className="h-full w-full object-cover" />
-          </div>
-          <div className="mt-3 space-y-2">
-            <p className="text-[10px] text-[#888]">Happy with this one?</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={retake}
-                disabled={uploading}
-                className="flex-1 rounded-[6px] border-[1.5px] border-white text-white py-[9px] text-[10px] font-[700] uppercase tracking-[0.08em] disabled:opacity-50"
-              >
-                Retake
-              </button>
-              <button
-                type="button"
-                onClick={uploadPhoto}
-                disabled={uploading}
-                className="flex-1 rounded-[6px] bg-[#FF3C00] text-white py-[10px] text-[10px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
-              >
-                {uploading ? (uploadRetrying ? "Retrying…" : "Uploading…") : "Use photo"}
-              </button>
-            </div>
-            {error && <p className="text-[10px] text-red-400">{error}</p>}
-          </div>
-        </div>
-
-        {/* Thank-you modal */}
-        {showThankYouModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
-            <div className="w-full max-w-sm rounded-[8px] bg-white text-black p-6 text-center">
-              <h2 className="text-[22px] font-[800] tracking-[-0.02em]">Thank you!</h2>
-              <p className="mt-2 text-[10px] text-[#555] leading-[1.6]">
-                You&apos;ve used all your photos for <span className="font-[700] text-black">{event?.name}</span>. Your shots are in the gallery.
-              </p>
-              <button
-                type="button"
-                onClick={() => router.push(`/e/${id}/thanks`)}
-                className="mt-4 w-full rounded-[6px] bg-black text-white py-[11px] text-[10px] font-[800] uppercase tracking-[0.08em]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const busy = processing || uploading;
 
   // ── INTRO VIEW (light) ──
   return (
@@ -510,16 +439,18 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
         <button
           type="button"
           onClick={openCamera}
-          disabled={limitReached || processing}
+          disabled={limitReached || busy}
           className="w-full rounded-[6px] bg-[#FF3C00] text-white py-[14px] text-[13px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
         >
           {limitReached
             ? "Photo limit reached"
-            : processing
-              ? "Processing…"
-              : photosTaken > 0
-                ? "Take another shot →"
-                : "Open camera →"}
+            : uploading
+              ? (uploadRetrying ? "Retrying…" : "Uploading…")
+              : processing
+                ? "Processing…"
+                : photosTaken > 0
+                  ? "Take another shot →"
+                  : "Open camera →"}
         </button>
         <p className="text-center text-[9px] text-[#AAA] mt-2">
           {event.photoLimitPerGuest} shots · Moderation {event.moderationEnabled ? "on" : "off"} · No account needed
