@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "node:stream";
 import { randomUUID } from "crypto";
 
 function getS3Config() {
@@ -75,14 +76,26 @@ export async function getPresignedPutUrl(
   return getSignedUrl(getS3Client(), command, { expiresIn: 300 });
 }
 
-/** Download an S3 object's bytes (used server-side to derive thumbnails). */
+/**
+ * Download an S3 object's bytes (used server-side to derive thumbnails).
+ *
+ * We collect the stream chunks manually rather than using
+ * `transformToByteArray()`: on some Lambda runtimes that returns a
+ * SharedArrayBuffer-backed array, which `sharp` rejects ("input must be
+ * ArrayBuffer"). `Buffer.concat` always yields a normally-allocated Buffer.
+ */
 export async function getObjectBuffer(key: string): Promise<Buffer> {
   const res = await getS3Client().send(
     new GetObjectCommand({ Bucket: getBucket(), Key: key }),
   );
   if (!res.Body) throw new Error(`S3 object has no body: ${key}`);
-  const bytes = await res.Body.transformToByteArray();
-  return Buffer.from(bytes);
+
+  const stream = res.Body as Readable;
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+  }
+  return Buffer.concat(chunks);
 }
 
 /** Upload a raw buffer to a known key and return its CloudFront URL. */
