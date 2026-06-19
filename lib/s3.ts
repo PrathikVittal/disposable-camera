@@ -5,7 +5,6 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "node:stream";
 import { randomUUID } from "crypto";
 
 function getS3Config() {
@@ -82,40 +81,48 @@ export async function getPresignedPutUrl(
   return getSignedUrl(getS3Client(), command, { expiresIn: 300 });
 }
 
-/**
- * Download an S3 object's bytes (used server-side to derive thumbnails).
- *
- * We collect the stream chunks manually rather than using
- * `transformToByteArray()`: on some Lambda runtimes that returns a
- * SharedArrayBuffer-backed array, which `sharp` rejects ("input must be
- * ArrayBuffer"). `Buffer.concat` always yields a normally-allocated Buffer.
- */
-export async function getObjectBuffer(key: string): Promise<Buffer> {
-  const res = await getS3Client().send(
-    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+// ---------------------------------------------------------------------------
+// All server-side S3 transfers go through presigned URLs + fetch rather than
+// the SDK's `.send()`. The SDK's request/response body pipeline crashes on the
+// Amplify Lambda runtime ("input must be ArrayBuffer (got SharedArrayBuffer)").
+// `getSignedUrl` is pure local signing (no body), so it's safe; the actual
+// bytes move over plain fetch, bypassing the broken SDK path entirely.
+// ---------------------------------------------------------------------------
+
+/** PUT a buffer to S3 via a presigned URL. Returns its CloudFront URL. */
+async function putViaPresignedUrl(
+  key: string,
+  body: Buffer,
+  contentType: string,
+): Promise<string> {
+  const url = await getSignedUrl(
+    getS3Client(),
+    new PutObjectCommand({ Bucket: getBucket(), Key: key, ContentType: contentType }),
+    { expiresIn: 300 },
   );
-  if (!res.Body) throw new Error(`S3 object has no body: ${key}`);
-
-  const body = res.Body as unknown;
-  const chunks: Buffer[] = [];
-
-  // Web ReadableStream (some Lambda/edge runtimes return this).
-  if (body && typeof (body as ReadableStream).getReader === "function") {
-    const reader = (body as ReadableStream<Uint8Array>).getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) chunks.push(Buffer.from(value)); // copy → normal ArrayBuffer
-    }
-    return Buffer.concat(chunks);
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: new Uint8Array(body),
+  });
+  if (!res.ok) {
+    throw new Error(`S3 upload failed for ${key}: ${res.status} ${res.statusText}`);
   }
+  return cdnUrlForKey(key);
+}
 
-  // Node Readable. Buffer.from() copies each chunk so the result is never
-  // backed by a SharedArrayBuffer (which sharp rejects).
-  for await (const chunk of body as Readable) {
-    chunks.push(Buffer.from(chunk as Uint8Array));
+/** Download an S3 object's bytes (used server-side to derive thumbnails). */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const url = await getSignedUrl(
+    getS3Client(),
+    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+    { expiresIn: 300 },
+  );
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`S3 download failed for ${key}: ${res.status} ${res.statusText}`);
   }
-  return Buffer.concat(chunks);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /** Upload a raw buffer to a known key and return its CloudFront URL. */
@@ -124,16 +131,7 @@ export async function uploadBufferToS3(
   key: string,
   contentType: string,
 ): Promise<string> {
-  await getS3Client().send(
-    new PutObjectCommand({
-      Bucket: getBucket(),
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
-    }),
-  );
-  return cdnUrlForKey(key);
+  return putViaPresignedUrl(key, buffer, contentType);
 }
 
 /**
@@ -157,20 +155,7 @@ export async function uploadBase64ToS3(
   const key = `${folder}/${randomUUID()}.${ext}`;
 
   const buffer = Buffer.from(base64Data, "base64");
-  const bucket = getBucket();
-  const cdnBase = getCdnBase();
-
-  await getS3Client().send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
-    }),
-  );
-
-  return `${cdnBase}/${key}`;
+  return putViaPresignedUrl(key, buffer, contentType);
 }
 
 /**
@@ -183,12 +168,12 @@ export async function deleteFromS3(cdnUrl: string): Promise<void> {
     const key = cdnUrl.replace(`${cdnBase}/`, "");
     if (!key || key === cdnUrl) return;
 
-    await getS3Client().send(
-      new DeleteObjectCommand({
-        Bucket: getBucket(),
-        Key: key,
-      }),
+    const url = await getSignedUrl(
+      getS3Client(),
+      new DeleteObjectCommand({ Bucket: getBucket(), Key: key }),
+      { expiresIn: 300 },
     );
+    await fetch(url, { method: "DELETE" });
   } catch (err) {
     console.error("[S3] deleteFromS3 failed:", err);
   }
