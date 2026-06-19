@@ -40,6 +40,12 @@ function getS3Client(): S3Client {
   _s3 = new S3Client({
     region,
     credentials: { accessKeyId, secretAccessKey },
+    // The AWS SDK's default integrity checksums (added in newer v3 releases)
+    // throw "input must be ArrayBuffer (got SharedArrayBuffer)" on the Amplify
+    // Lambda runtime. We don't need request/response CRC32, so only compute it
+    // when an operation strictly requires it.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
   return _s3;
 }
@@ -90,10 +96,24 @@ export async function getObjectBuffer(key: string): Promise<Buffer> {
   );
   if (!res.Body) throw new Error(`S3 object has no body: ${key}`);
 
-  const stream = res.Body as Readable;
+  const body = res.Body as unknown;
   const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+
+  // Web ReadableStream (some Lambda/edge runtimes return this).
+  if (body && typeof (body as ReadableStream).getReader === "function") {
+    const reader = (body as ReadableStream<Uint8Array>).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(Buffer.from(value)); // copy → normal ArrayBuffer
+    }
+    return Buffer.concat(chunks);
+  }
+
+  // Node Readable. Buffer.from() copies each chunk so the result is never
+  // backed by a SharedArrayBuffer (which sharp rejects).
+  for await (const chunk of body as Readable) {
+    chunks.push(Buffer.from(chunk as Uint8Array));
   }
   return Buffer.concat(chunks);
 }
