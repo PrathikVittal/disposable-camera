@@ -259,7 +259,7 @@ export default function EventDetailPage({
       const zip = new JSZip();
       await Promise.all(
         filteredPhotos.map(async (photo, i) => {
-          const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.storageUrl)}`);
+          const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.originalUrl ?? photo.storageUrl)}`);
           const blob = await res.blob();
           const ext = blob.type.split("/")[1] ?? "jpg";
           zip.file(`photo-${String(i + 1).padStart(3, "0")}.${ext}`, blob);
@@ -608,7 +608,7 @@ export default function EventDetailPage({
                   onClick={() => { setSlideshowIdx(filteredPhotos.indexOf(photo)); setSlideshowOpen(true); }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={photo.thumbnailUrl ?? photo.storageUrl} alt="" className="h-full w-full object-cover" />
                 </div>
               ))}
             </div>

@@ -29,6 +29,9 @@ todos:
   - id: google-oauth-setup
     content: Configure real Google OAuth credentials (AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET) in production environment.
     status: pending
+  - id: decide-original-download-access
+    content: Decide whether full-resolution originals should be downloadable from the public gallery or restricted to the authenticated host only. Currently BOTH the host event-detail page and the public gallery "Download all" pull originals. If host-only is desired, gate originalUrl behind auth in the events GET and have the public gallery fall back to the display version.
+    status: pending
 isProject: false
 ---
 
@@ -179,6 +182,38 @@ Working name: **"Digital Disposable Events"**
 - `public/manifest.json`: name, short_name, theme, background color, display standalone
 - `public/sw.js`: network-first for navigation, cache-first for static assets, pass-through for API calls
 - Service worker registered on mount via `ServiceWorkerRegistrar` component
+
+### 5.9 Image Handling Pipeline (Updated)
+
+Reworked to capture and preserve high-quality, print-worthy photos instead of low-resolution video frames.
+
+**Capture**
+- Guest capture uses the **native device camera** via `<input type="file" accept="image/*" capture="environment">`, which returns a **full-resolution still (12MP+)**. The previous live `getUserMedia` viewfinder, in-app filters, flip, and torch controls were removed (the OS camera provides its own).
+- On iPhone, HEIC is converted to JPEG client-side (`heic2any`).
+- The original is capped **client-side** to ~4000px long edge (~12MP) at JPEG q92 before upload — keeps files lean for weak event Wi-Fi while staying print-worthy.
+
+**Three stored versions per photo** (S3 keys share one UUID):
+| Tier | Key prefix | Size / quality | Used for |
+|---|---|---|---|
+| Original | `photos/originals/` | ~12MP, untouched (q92) | Host ZIP download |
+| Display | `photos/display/` | ≤2048px, q85 | Public gallery + slideshow |
+| Thumbnail | `photos/thumb/` | ≤400px, q70 | Gallery grids |
+
+**Upload flow (presigned direct-to-S3)**
+1. `POST /api/events/[id]/photos/presign` — re-checks time window + per-guest limit, returns a short-lived presigned PUT URL + key.
+2. Browser `PUT`s the original directly to S3 (bypasses the app server).
+3. `POST /api/events/[id]/photos` (finalize) — re-validates, reads the original from S3, generates display + thumbnail with `sharp` (`.rotate()` auto-orients from EXIF), stores all three URLs on the `Photo` row.
+
+The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects), the limit is checked at both presign and finalize, and the count is `Photo` row count. A failed finalize leaves an orphan original in S3 (does not count against the guest) — candidate for a future cleanup job.
+
+**Data model change:** `Photo` gains `originalUrl` and `thumbnailUrl` (nullable; `storageUrl` now holds the display version). Legacy rows were backfilled so all three point at the original single object.
+
+**Infrastructure requirements (production):**
+- **S3 bucket CORS** must allow `PUT` from the app origin (and `http://localhost:3000` for dev), or browser presigned uploads are blocked.
+- **IAM** behind the S3 credentials must allow `s3:GetObject` (new — finalize reads the original back), in addition to the existing `s3:PutObject` / `s3:DeleteObject`.
+- Amplify SSR/function memory ≥512MB–1GB recommended (server-side `sharp` decode of a 12MP image).
+
+**Open decision:** originals are currently downloadable from both the host page and the public gallery — see todo `decide-original-download-access`.
 
 ## 6. Technical Stack
 

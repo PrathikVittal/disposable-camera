@@ -42,7 +42,9 @@ model Photo {
   eventId        String
   event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   guestSessionId String
-  storageUrl     String
+  storageUrl     String   // display version (web-optimized) — shown in galleries
+  originalUrl    String?  // full-resolution original — host ZIP download
+  thumbnailUrl   String?  // small version — gallery grid
   status         String   @default("approved")
   createdAt      DateTime @default(now())
 }

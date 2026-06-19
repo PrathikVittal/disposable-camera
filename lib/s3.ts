@@ -1,8 +1,10 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 
 function getS3Config() {
@@ -50,6 +52,56 @@ function getCdnBase(): string {
 }
 
 export type S3Folder = "photos" | "covers";
+
+/** Build the public CloudFront URL for a given S3 object key. */
+export function cdnUrlForKey(key: string): string {
+  return `${getCdnBase()}/${key}`;
+}
+
+/**
+ * Create a short-lived presigned PUT URL so the browser can upload an object
+ * directly to S3 (used for full-resolution guest photo originals). The client
+ * must send the matching `Content-Type` header on its PUT request.
+ */
+export async function getPresignedPutUrl(
+  key: string,
+  contentType: string,
+): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: getBucket(),
+    Key: key,
+    ContentType: contentType,
+  });
+  return getSignedUrl(getS3Client(), command, { expiresIn: 300 });
+}
+
+/** Download an S3 object's bytes (used server-side to derive thumbnails). */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const res = await getS3Client().send(
+    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+  );
+  if (!res.Body) throw new Error(`S3 object has no body: ${key}`);
+  const bytes = await res.Body.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
+/** Upload a raw buffer to a known key and return its CloudFront URL. */
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: "public, max-age=31536000, immutable",
+    }),
+  );
+  return cdnUrlForKey(key);
+}
 
 /**
  * Decode a base64 dataUrl, upload to S3, and return the CloudFront CDN URL.

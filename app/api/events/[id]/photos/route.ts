@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import {
   addPhoto,
   countPhotosForGuest,
   getEventById,
   listPhotos,
 } from "@/lib/store";
-import { uploadBase64ToS3 } from "@/lib/s3";
+import { cdnUrlForKey, getObjectBuffer, uploadBufferToS3 } from "@/lib/s3";
 import { getEventWindow } from "@/lib/eventWindow";
+
+export const runtime = "nodejs";
+
+// Display/thumbnail derivative sizing. Originals are kept untouched.
+const DISPLAY_MAX = 2048;
+const DISPLAY_QUALITY = 85;
+const THUMB_MAX = 400;
+const THUMB_QUALITY = 70;
+
+const ORIGINAL_PREFIX = "photos/originals/";
 
 export async function GET(
   req: NextRequest,
@@ -65,13 +76,18 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { dataUrl, guestSessionId } = body ?? {};
+  const { key, guestSessionId } = body ?? {};
 
-  if (!dataUrl || !guestSessionId) {
+  if (!key || !guestSessionId) {
     return NextResponse.json(
-      { error: "Missing dataUrl or guestSessionId" },
+      { error: "Missing key or guestSessionId" },
       { status: 400 },
     );
+  }
+
+  // Only accept keys our own presign endpoint could have issued.
+  if (typeof key !== "string" || !key.startsWith(ORIGINAL_PREFIX)) {
+    return NextResponse.json({ error: "Invalid key" }, { status: 400 });
   }
 
   const alreadyTaken = await countPhotosForGuest(event.id, guestSessionId);
@@ -82,14 +98,38 @@ export async function POST(
     );
   }
 
-  // Upload to S3 and get CDN URL
+  // The uuid is shared across the three derivatives for traceability.
+  const uuid = key.slice(ORIGINAL_PREFIX.length).replace(/\.jpg$/i, "");
+
+  // Read the uploaded original and derive a web display + thumbnail version.
   let storageUrl: string;
+  let thumbnailUrl: string;
   try {
-    storageUrl = await uploadBase64ToS3(dataUrl, "photos");
+    const original = await getObjectBuffer(key);
+
+    // .rotate() with no args auto-orients from EXIF before stripping metadata,
+    // so derivatives are never sideways.
+    const [displayBuf, thumbBuf] = await Promise.all([
+      sharp(original)
+        .rotate()
+        .resize(DISPLAY_MAX, DISPLAY_MAX, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: DISPLAY_QUALITY })
+        .toBuffer(),
+      sharp(original)
+        .rotate()
+        .resize(THUMB_MAX, THUMB_MAX, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: THUMB_QUALITY })
+        .toBuffer(),
+    ]);
+
+    [storageUrl, thumbnailUrl] = await Promise.all([
+      uploadBufferToS3(displayBuf, `photos/display/${uuid}.jpg`, "image/jpeg"),
+      uploadBufferToS3(thumbBuf, `photos/thumb/${uuid}.jpg`, "image/jpeg"),
+    ]);
   } catch (err) {
-    console.error("[photos POST] S3 upload failed:", err);
+    console.error("[photos POST] derivative generation failed:", err);
     return NextResponse.json(
-      { error: "Failed to upload photo. Please try again." },
+      { error: "Failed to process photo. Please try again." },
       { status: 500 },
     );
   }
@@ -100,7 +140,9 @@ export async function POST(
   const photo = await addPhoto({
     eventId: event.id,
     guestSessionId,
-    storageUrl,
+    storageUrl, // display version
+    originalUrl: cdnUrlForKey(key),
+    thumbnailUrl,
     status,
   });
 

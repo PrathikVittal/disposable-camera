@@ -122,7 +122,9 @@ export async function countPhotosForGuest(
 export async function addPhoto(input: {
   eventId: string;
   guestSessionId: string;
-  storageUrl: string;
+  storageUrl: string; // display version
+  originalUrl: string;
+  thumbnailUrl: string;
   status: PhotoStatus;
 }): Promise<Photo> {
   const row = await prisma.photo.create({
@@ -130,6 +132,8 @@ export async function addPhoto(input: {
       eventId: input.eventId,
       guestSessionId: input.guestSessionId,
       storageUrl: input.storageUrl,
+      originalUrl: input.originalUrl,
+      thumbnailUrl: input.thumbnailUrl,
       status: input.status,
     },
   });
@@ -164,10 +168,17 @@ export async function deletePhoto(
 
     await prisma.photo.delete({ where: { id: photoId } });
 
-    // Clean up the S3 object — fire and forget (don't fail the request if S3 errors)
-    deleteFromS3(photo.storageUrl).catch((err) =>
-      console.error("[store] deleteFromS3 failed:", err),
-    );
+    // Clean up all S3 objects (display, original, thumbnail) — fire and forget
+    // (don't fail the request if S3 errors). De-dupe in case any URLs match
+    // (e.g. backfilled legacy rows where all three point at the same object).
+    const urls = [...new Set([photo.storageUrl, photo.originalUrl, photo.thumbnailUrl])];
+    for (const url of urls) {
+      if (url) {
+        deleteFromS3(url).catch((err) =>
+          console.error("[store] deleteFromS3 failed:", err),
+        );
+      }
+    }
 
     return true;
   } catch {
@@ -218,6 +229,8 @@ function toPhoto(row: {
   eventId: string;
   guestSessionId: string;
   storageUrl: string;
+  originalUrl: string | null;
+  thumbnailUrl: string | null;
   status: string;
   createdAt: Date;
 }): Photo {
@@ -226,6 +239,8 @@ function toPhoto(row: {
     eventId: row.eventId,
     guestSessionId: row.guestSessionId,
     storageUrl: row.storageUrl,
+    originalUrl: row.originalUrl ?? undefined,
+    thumbnailUrl: row.thumbnailUrl ?? undefined,
     status: row.status as PhotoStatus,
     createdAt: row.createdAt.toISOString(),
   };

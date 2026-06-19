@@ -21,7 +21,9 @@ export type Photo = {
   id: string;
   eventId: string;
   guestSessionId: string;
-  storageUrl: string;
+  storageUrl: string; // display version (web-optimized)
+  originalUrl?: string; // full-resolution original (host download)
+  thumbnailUrl?: string; // small version (gallery grid)
   status: PhotoStatus;
   createdAt: string;
 };

@@ -72,7 +72,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
       const zip = new JSZip();
       await Promise.all(
         displayPhotos.map(async (photo, i) => {
-          const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.storageUrl)}`);
+          const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(photo.originalUrl ?? photo.storageUrl)}`);
           const blob = await res.blob();
           const ext = blob.type.split("/")[1] ?? "jpg";
           zip.file(`photo-${String(i + 1).padStart(3, "0")}.${ext}`, blob);
@@ -174,7 +174,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
             {displayPhotos.map((photo) => (
               <div key={photo.id} className="aspect-square rounded-[3px] overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.storageUrl} alt="" className="h-full w-full object-cover" />
+                <img src={photo.thumbnailUrl ?? photo.storageUrl} alt="" className="h-full w-full object-cover" />
               </div>
             ))}
           </div>
