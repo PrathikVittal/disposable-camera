@@ -18,16 +18,28 @@ todos:
     content: Produce UX wireframes for host dashboard, event detail, guest landing, camera UI, and gallery/moderation views.
     status: completed
   - id: real-db-migration
-    content: Migrate from in-memory Map store to PostgreSQL (events, photos, users) with a proper ORM (e.g. Prisma or Drizzle).
-    status: pending
+    content: Migrate from in-memory Map store to PostgreSQL (events, photos, users) with a proper ORM. DONE — Prisma + PostgreSQL (Neon), see lib/db.ts and prisma/schema.prisma.
+    status: completed
   - id: s3-photo-storage
-    content: Replace base64 dataUrl storage with AWS S3 (or Cloudflare R2) uploads. Return CDN URLs instead of inline data.
-    status: pending
+    content: Replace base64 dataUrl storage with AWS S3 uploads behind a CDN. DONE — S3 + CloudFront, presigned direct-to-S3 uploads, sharp derivatives (lib/s3.ts).
+    status: completed
+  - id: password-reset
+    content: Forgot-password flow with emailed reset codes for credentials users. DONE — Resend email, code hashed + 15-min expiry (lib/email.ts, app/auth/forgot-password, /api/auth/forgot-password + reset-password).
+    status: completed
   - id: pwa-icons
     content: Generate proper 192x192 and 512x512 PNG icon assets for the PWA manifest.
     status: pending
   - id: google-oauth-setup
     content: Configure real Google OAuth credentials (AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET) in production environment.
+    status: pending
+  - id: email-sending-domain
+    content: Verify a sending domain in Resend (SPF/DKIM/DMARC) and set EMAIL_FROM so password-reset emails deliver to any recipient. Until then, only the Resend account owner's email receives codes.
+    status: pending
+  - id: rate-limit-endpoints
+    content: Add rate limiting to the photo upload (presign/finalize) and forgot-password endpoints to prevent abuse.
+    status: pending
+  - id: migrate-email-to-ses
+    content: For the client AWS handoff, swap Resend → AWS SES in lib/email.ts (SES SendEmailCommand already stubbed inline). Reuses existing AWS creds; needs ses:SendEmail IAM permission + sandbox exit.
     status: pending
   - id: decide-original-download-access
     content: Decide whether full-resolution originals should be downloadable from the public gallery or restricted to the authenticated host only. Currently BOTH the host event-detail page and the public gallery "Download all" pull originals. If host-only is desired, gate originalUrl behind auth in the events GET and have the public gallery fall back to the display version.
@@ -39,11 +51,11 @@ isProject: false
 
 ## 1. Product Summary
 
-A web-based **digital disposable camera** platform for events. Hosts create private events and share a QR code or link. Guests scan the code, open a **browser-based camera**, and take a **limited number of photos** without installing an app or creating an account. Photos upload to a centralized gallery the host can view, moderate, and download.
+A web-based **digital disposable camera** platform for events. Hosts create private events and share a QR code or link. Guests scan the code, capture a **limited number of photos** with their phone's **native camera** (no app install, no account), and the photos upload to a centralized gallery the host can view, moderate, and download.
 
 Working name: **"Digital Disposable Events"**
 
-**Current status**: Full MVP feature-complete with auth, moderation, gallery, PWA support.
+**Current status**: Production architecture — PostgreSQL (Neon) + Prisma, AWS S3 + CloudFront storage with a three-tier image pipeline, native-camera capture, event time windows, host auth incl. password reset, moderation, galleries, and PWA support. Deployed on AWS Amplify.
 
 ## 2. Goals
 
@@ -58,24 +70,26 @@ Working name: **"Digital Disposable Events"**
 - [x] Host authentication (email/password + Google OAuth)
 - [x] Per-event public gallery page (shareable link)
 - [x] PWA manifest + service worker for installability
-- [x] Camera filters (B&W, Vintage, Film, Retro)
-- [x] Flash/torch toggle + front/back camera flip
-- [x] Image compression before upload (max 1920px, JPEG 0.82)
+- [x] **Native-camera capture** of full-resolution (12MP) stills (replaced the old live in-app camera + filters)
+- [x] **Three-tier image pipeline** (original / display / thumbnail) via `sharp` (see §5.9)
+- [x] **PostgreSQL (Neon) + Prisma** persistence (replaced in-memory store)
+- [x] **AWS S3 + CloudFront** storage with presigned direct-to-S3 uploads (replaced base64)
+- [x] **Event time window** — guest access gated to the event's start/end + timezone, with a 30-min grace (see §5.10)
+- [x] **Forgot-password** flow with emailed reset codes (see §5.11)
+- [x] Per-guest count rehydrated from the server on refresh (survives reload)
 - [x] Upload retry with exponential backoff (3 attempts)
-- [x] Camera permission denial handling with browser-specific instructions
 - [x] QR code generation + downloadable QR poster
-- [x] Gallery ZIP download + slideshow mode
+- [x] Gallery ZIP download (originals) + slideshow mode; masonry host gallery
 - [x] Photo moderation (Approve / Reject per photo + bulk actions)
 - [x] Event editing (inline panel on event detail page)
-- [x] Cover image upload (client-side resize + base64)
+- [x] Cover image upload (client-side resize → S3)
 
 ### 2.2 Non-Goals (MVP)
 
-- Full-fledged account management UI (email verification, password reset)
-- Real cloud storage (S3/CDN) — using base64 dataUrls in MVP
-- Relational database — using in-memory Maps (resets on server restart)
+- Full-fledged account management UI (email verification, profile editing) — *note: password reset is now implemented*
 - Advanced analytics or reporting
 - AI enhancements, print integration, video capture, white-labeling
+- Live in-app camera filters (removed in favor of full-resolution native capture)
 
 ## 3. User Personas
 
@@ -90,10 +104,10 @@ Working name: **"Digital Disposable Events"**
 ### 3.2 Guest
 
 - Scans QR code or taps shared link
-- Lands directly in event context without login
-- Grants camera permission, uses in-browser camera with live filters
+- Lands directly in event context without login (blocked if outside the event time window)
+- Taps "Open camera" → the **native device camera** opens; takes a photo
 - Takes up to the configured photo limit per guest
-- Photos auto-upload to event gallery; receives thank-you screen at limit
+- Photos auto-upload to event gallery; redirected to the thank-you page at limit
 
 ## 4. High-Level User Flows
 
@@ -112,13 +126,13 @@ Working name: **"Digital Disposable Events"**
 
 ### 4.2 Guest Flow
 
-1. Scan QR / open link → Event landing with cover image and description
-2. Tap **"Open Camera"** → browser prompts for permission
-   - On denial: shows instructional card with browser-specific steps + "Try again" button
-3. Live camera preview with filter dropdown (bottom-left), flip (left), shutter (center), flash (right)
-4. Capture → preview (Accept / Retake)
-5. Accept → compressed upload with retry backoff → remaining count decrements
-6. At limit → thank-you modal → dedicated thank-you page
+1. Scan QR / open link → Event landing with event name, date/time, photo count
+   - If **before** the event start → "Not just yet" screen with the start time
+   - If **after** end + 30-min grace → redirected to the "That's a wrap" ended page
+2. Tap **"Open camera"** → the **native OS camera** opens (it provides its own shutter/retake/use-photo + any device filters)
+3. "Use Photo" in the OS camera returns the full-res still → it is **uploaded immediately** (no second web-side preview)
+4. Upload: client converts HEIC→JPEG + caps to ~12MP → presigned PUT to S3 → finalize (server makes display + thumbnail); remaining count decrements
+5. At limit → redirected to the dedicated `/e/{id}/thanks` page (also on return visits once the quota is used)
 
 ### 4.3 Moderation Flow
 
@@ -134,42 +148,44 @@ Working name: **"Digital Disposable Events"**
 - Session-based auth with JWT tokens
 - Middleware protects all `/dashboard/**` routes
 - Events are scoped to `hostId` — hosts only see their own events
+- **Forgot-password** flow with emailed 6-digit reset codes (see §5.11)
 
 ### 5.2 Event Management
 
-- Create event: name (required), date (required), description, cover image (file upload, resized to max 1200px), per-guest photo limit (1–50), start/end time, moderation toggle
-- Edit event: inline slide-in panel with same fields (except cover image)
+- Create event: name (required), date (required), description, cover image (file upload, resized to max 1200px → S3), per-guest photo limit (1–50), start/end time, **timezone** (IANA, auto-detected from the host's browser), moderation toggle
+- Edit event: inline slide-in panel with the same fields incl. timezone (except cover image)
 - Event list on dashboard shows thumbnail, name, date, moderation status
 
 ### 5.3 Guest Camera Interface
 
-- Landing: event name, date, times, cover image, description, photo count
-- Camera UI: live preview with CSS filter overlay, filter dropdown, flip button, shutter, flash (if torch supported)
-- Image capture: resized to max 1920px long edge, JPEG at 0.82 quality (~300–600 KB)
-- Preview: Accept / Retake; upload with 3-attempt exponential backoff
-- Permission denied: friendly error card with iOS Safari / Android Chrome / Desktop Chrome instructions
-- Photo limit: thank-you modal → `/e/{id}/thanks` page
+- Landing: event name, date, times, photo count; "Shots Left" / "Taken" stats
+- Capture: **native OS camera** via `<input capture>` (no in-app viewfinder/filters — see §5.9). On supported devices the OS camera supplies its own shutter/retake/use-photo.
+- After "Use Photo", the still is **uploaded immediately** (no redundant web preview); status shows "Processing… → Uploading…"
+- Per-guest count is **rehydrated from the server on load** (and cached in localStorage) so it survives a refresh
+- Time-window gating: before-start block / after-end redirect (see §5.10)
+- Photo limit: redirect to `/e/{id}/thanks`
+- Full capture/upload/storage detail is in §5.9.
 
-### 5.4 Photo Storage (MVP)
+### 5.4 Photo Storage
 
-- Photos stored as JPEG base64 dataUrls in in-memory Map on server
-- Metadata: eventId, guestSessionId, status, createdAt
-- **Next step**: migrate to S3 + CDN-backed URLs
+- **PostgreSQL (Neon) via Prisma** for all entities (users, events, photos, reset codes). Replaced the former in-memory store.
+- Photo **binaries on AWS S3**, served via **CloudFront**; the DB stores CDN URLs (original / display / thumbnail), not image data.
+- See §5.9 for the full image pipeline.
 
 ### 5.5 Event Gallery (Host)
 
-- Grid view of all approved photos (or all photos if moderation off)
+- **Masonry** (2-column) view of approved photos at natural aspect ratio (thumbnails), lazy-loaded
 - Pending view: thumbnail grid with per-photo Approve/Reject + "Approve all"/"Reject all" bulk actions
-- Rejected photos are deleted
-- ZIP download of all visible photos
-- Full-screen slideshow with keyboard navigation + auto-advance (4s)
+- Rejected photos are deleted (all three S3 derivatives removed)
+- ZIP download of all visible photos (pulls **originals**)
+- Full-screen slideshow (display version) with keyboard navigation + auto-advance (4s)
 
 ### 5.6 Public Gallery
 
 - Route `/gallery/{eventId}` — public, no-auth required
-- Shows approved photos (or all if moderation off) in a masonry-style grid
-- Full-screen slideshow mode
+- Shows approved photos (or all if moderation off) in a 3-column grid (thumbnails); ZIP download pulls originals
 - Linked from host event detail page with a copyable URL
+- *(Note: masonry + slideshow currently live on the host event page, not the public gallery — candidate to unify.)*
 
 ### 5.7 QR Code & Poster
 
@@ -215,6 +231,24 @@ The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects)
 
 **Open decision:** originals are currently downloadable from both the host page and the public gallery — see todo `decide-original-download-access`.
 
+**Runtime note:** all server-side S3 operations (read original, write derivatives, cover upload, delete) go through **presigned URLs + `fetch`**, not the AWS SDK's `.send()`. The SDK's body pipeline crashes on the Amplify Lambda runtime (`SharedArrayBuffer`); presigned-URL + fetch sidesteps it. `getSignedUrl` (pure local signing) is the only SDK call used. See `lib/s3.ts`.
+
+### 5.10 Event Time Window
+
+Guest access is gated to the event's scheduled window, interpreted in the event's **timezone**.
+
+- `Event.timezone` (IANA, e.g. `Asia/Kolkata`) is set on create/edit, auto-detected from the host's browser.
+- Logic lives in `lib/eventWindow.ts` (shared by client + server): `before` / `open` / `ended`, with a **30-minute grace** after `endTime`. If start/end aren't set, the event is open all day in its timezone.
+- **Guest page:** before start → "Not just yet" block with the start time; after end+grace → redirect to `/e/{id}/ended` ("That's a wrap").
+- **Server enforcement:** the presign + finalize endpoints reject uploads outside the window (`403 { reason: "event_not_started" | "event_ended" }`), so it can't be bypassed by changing the device clock. A mid-session expiry redirects the guest to the ended page.
+
+### 5.11 Password Reset
+
+- **Request:** `/auth/forgot-password` → `POST /api/auth/forgot-password` generates a 6-digit code, stores its **bcrypt hash** (15-min expiry, single-use, prior codes invalidated), and emails it. Always returns generic success (no account-existence leak). Only credentials accounts (not Google) get a code.
+- **Reset:** same page, step 2 → `POST /api/auth/reset-password` validates the code and sets the new bcrypt password hash.
+- **Email:** `lib/email.ts` behind a single provider-agnostic `sendEmail()`. Currently **Resend**; an **AWS SES** variant is stubbed inline for the client handoff (reuses AWS creds, needs `ses:SendEmail` + sandbox exit).
+- **New model:** `PasswordResetCode` (see §7).
+
 ## 6. Technical Stack
 
 | Layer | Technology |
@@ -224,11 +258,15 @@ The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects)
 | Styling | Tailwind CSS v4 |
 | Auth | NextAuth.js v5 (beta) |
 | Password hashing | bcryptjs |
+| Database | PostgreSQL (Neon) via **Prisma** |
+| Object storage | **AWS S3** + **CloudFront** (presigned direct-to-S3 uploads) |
+| Server image processing | **sharp** (display + thumbnail derivatives) |
+| Client image processing | HTML Canvas (HEIC→JPEG via `heic2any`, 12MP cap) |
+| Capture | **Native OS camera** (`<input type="file" capture>`) |
+| Transactional email | **Resend** (SES-swappable) |
 | QR code | qrcode |
 | ZIP | jszip |
-| Storage (MVP) | In-memory Map on `globalThis` |
-| Camera API | `navigator.mediaDevices.getUserMedia` |
-| Image processing | HTML Canvas API |
+| Hosting | AWS Amplify |
 
 ## 7. Data Model
 
@@ -242,10 +280,11 @@ The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects)
   name: string;
   date: string;
   description?: string;
-  coverImageUrl?: string; // base64 dataUrl (MVP) → S3 URL (production)
+  coverImageUrl?: string;   // CloudFront URL
   photoLimitPerGuest: number;
-  startTime?: string;
-  endTime?: string;
+  startTime?: string;       // "HH:mm"
+  endTime?: string;         // "HH:mm"
+  timezone: string;         // IANA, e.g. "Asia/Kolkata"
   moderationEnabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -259,7 +298,9 @@ The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects)
   id: string;
   eventId: string;
   guestSessionId: string;  // localStorage per event per browser
-  dataUrl: string;          // base64 JPEG (MVP) → S3 URL (production)
+  storageUrl: string;       // display version (web-optimized) — CloudFront URL
+  originalUrl?: string;     // full-res original — host download
+  thumbnailUrl?: string;    // small version — gallery grid
   status: "pending" | "approved" | "rejected";
   createdAt: string;
 }
@@ -278,24 +319,62 @@ The per-guest count is unchanged: one photo = one `Photo` row (three S3 objects)
 }
 ```
 
+### 7.4 PasswordResetCode
+
+```ts
+{
+  id: string;
+  userId: string;
+  codeHash: string;   // bcrypt hash of the 6-digit code
+  expiresAt: string;  // 15 minutes after creation
+  used: boolean;
+  createdAt: string;
+}
+```
+
 ## 8. Environment Variables
 
+See `.env.local.example` for the full annotated setup guide.
+
 ```env
-AUTH_SECRET=<32-byte random string>   # required — NextAuth signing secret
+# Auth (NextAuth v5)
+AUTH_SECRET=<32-byte random string>
 AUTH_GOOGLE_ID=<your-google-client-id>
 AUTH_GOOGLE_SECRET=<your-google-client-secret>
+
+# Database (Neon PostgreSQL via Prisma)
+DATABASE_URL=<pooled connection string>
+DIRECT_URL=<direct connection string, for migrations>
+
+# AWS S3 + CloudFront  (NOTE: no AWS_ prefix — code reads these names)
+REGION=<aws-region>
+ACCESS_KEY_ID=<iam-access-key>
+SECRET_ACCESS_KEY=<iam-secret-key>
+S3_BUCKET_NAME=<bucket>
+CLOUDFRONT_DOMAIN=<distribution-domain, no https://>
+
+# Email (password-reset codes via Resend)
+RESEND_API_KEY=<resend-api-key>
+EMAIL_FROM=DDC <noreply@yourdomain.com>
 ```
+
+**IAM** behind the AWS keys must allow `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` (and `ses:SendEmail` if/when migrating email to SES). **S3 bucket CORS** must allow `PUT` from the app origin for presigned uploads.
 
 ## 9. Pending / Production Readiness Items
 
-1. **Real database**: replace `lib/store.ts` in-memory Maps with PostgreSQL via Prisma or Drizzle
-2. **S3 photo storage**: upload images to S3/R2 on server; store CDN URLs instead of base64
-3. **PWA icons**: generate actual 192×192 and 512×512 PNG app icons for the manifest
-4. **Google OAuth credentials**: configure real client ID/secret in production `.env`
-5. **Email verification + password reset**: add these auth flows for credentials users
-6. **Rate limiting**: protect photo upload endpoint (e.g. 1 req/s per guest session)
-7. **CDN caching**: serve photos via CloudFront or Cloudflare in front of S3
-8. **Event archival**: soft-delete events + photos, preserve storage longer than server restarts
+**Done since the original MVP:** real database (Prisma + Neon), S3 + CloudFront storage, three-tier image pipeline, password reset, event time window, CDN caching.
+
+Still pending:
+1. **PWA icons**: generate actual 192×192 and 512×512 PNG app icons for the manifest
+2. **Google OAuth credentials**: configure real client ID/secret in production
+3. **Email sending domain**: verify a domain in Resend (SPF/DKIM/DMARC) + set `EMAIL_FROM` so reset codes deliver to any recipient (currently only the Resend account owner's email)
+4. **Rate limiting**: protect the presign/finalize and forgot-password endpoints
+5. **Orphan cleanup**: delete S3 originals left by failed finalizes (no `Photo` row)
+6. **Decide original-download access** (host-only vs public) — see todo
+7. **Email verification** for new credentials signups
+8. **Event archival / retention**: soft-delete + lifecycle tiering of old event photos
+9. **Migrate email to SES** for the client AWS handoff (stub ready in `lib/email.ts`)
+10. **`.env.local.example` var-name mismatch**: example lists `AWS_REGION` etc.; the code reads `REGION`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY` (no `AWS_` prefix) — align to avoid setup confusion
 
 ## 10. Out-of-Scope / Phase 3 Items
 
@@ -310,21 +389,25 @@ These are **not** part of the current implementation but the architecture suppor
 - Multi-language support
 - Video capture mode
 - White-labeling and B2B integrations
-- Custom branded camera themes beyond current filters
+- Post-capture filters / branded photo looks (the live in-app filters were removed with the move to native capture; filters would now be applied post-capture — see conversation notes)
 
 ## 11. Architecture Diagram
 
 ```mermaid
 flowchart LR
-  landing[Landing Page] --> login[Auth: Login / Signup]
+  landing[Landing Page] --> login[Auth: Login / Signup / Forgot Password]
   login -->|JWT session| dashboard[Host Dashboard]
   dashboard --> eventDetail[Event Detail]
   eventDetail -->|share link| publicGallery[Public Gallery]
   qr[QR Code] --> guestCamera[Guest Camera Page]
-  guestCamera --> thanks[Thank You Page]
+  guestCamera --> thanks[Thank You / Ended Page]
   middleware[middleware.ts] -.->|guards| dashboard
   middleware -.->|guards| eventDetail
   eventDetail --> api[Next.js API Routes]
+  guestCamera -->|presigned PUT| s3[(AWS S3)]
   guestCamera --> api
-  api --> store[In-memory Store\nglobalThis Maps]
+  api --> db[(PostgreSQL / Prisma)]
+  api -->|sharp derivatives| s3
+  s3 --> cdn[CloudFront CDN]
+  login -->|reset codes| email[Resend]
 ```

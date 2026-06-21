@@ -17,6 +17,8 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
   const [zipping, setZipping] = useState(false);
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [slideshowIdx, setSlideshowIdx] = useState(0);
 
   const fetchData = useCallback(async () => {
     try {
@@ -64,6 +66,32 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
     () => new Set(data?.photos.map((p) => p.guestSessionId)).size,
     [data],
   );
+
+  // Slideshow: keyboard navigation + auto-advance
+  useEffect(() => {
+    if (!slideshowOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") setSlideshowIdx((prev) => (prev + 1) % displayPhotos.length);
+      if (e.key === "ArrowLeft") setSlideshowIdx((prev) => (prev - 1 + displayPhotos.length) % displayPhotos.length);
+      if (e.key === "Escape") setSlideshowOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [slideshowOpen, displayPhotos.length]);
+
+  useEffect(() => {
+    if (!slideshowOpen || displayPhotos.length <= 1) return;
+    const timer = setTimeout(
+      () => setSlideshowIdx((prev) => (prev + 1) % displayPhotos.length),
+      4000,
+    );
+    return () => clearTimeout(timer);
+  }, [slideshowOpen, slideshowIdx, displayPhotos.length]);
+
+  const openSlideshow = (idx: number) => {
+    setSlideshowIdx(idx);
+    setSlideshowOpen(true);
+  };
 
   const handleDownloadZip = async () => {
     if (!data || displayPhotos.length === 0) return;
@@ -171,8 +199,12 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-[3px]">
-            {displayPhotos.map((photo) => (
-              <div key={photo.id} className="aspect-square rounded-[3px] overflow-hidden">
+            {displayPhotos.map((photo, idx) => (
+              <div
+                key={photo.id}
+                className="aspect-square rounded-[3px] overflow-hidden cursor-pointer"
+                onClick={() => openSlideshow(idx)}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photo.thumbnailUrl ?? photo.storageUrl} alt="" className="h-full w-full object-cover" />
               </div>
@@ -185,6 +217,14 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
 
       {/* Actions */}
       <section className="px-[15px] py-3 space-y-2">
+        <button
+          type="button"
+          onClick={() => openSlideshow(0)}
+          disabled={displayPhotos.length === 0}
+          className="w-full rounded-[6px] bg-[#FF3C00] text-white py-[10px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:opacity-50"
+        >
+          ▶ Play slideshow
+        </button>
         <button
           type="button"
           onClick={handleDownloadZip}
@@ -209,6 +249,55 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
           </Link>
         </div>
       </section>
+
+      {/* Slideshow overlay */}
+      {slideshowOpen && displayPhotos.length > 0 && (() => {
+        const idx = Math.min(slideshowIdx, displayPhotos.length - 1);
+        const photo = displayPhotos[idx];
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col bg-black">
+            <div className="flex items-center justify-between px-[15px] py-3">
+              <span className="text-[9px] text-[#888]">
+                {idx + 1} / {displayPhotos.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSlideshowOpen(false)}
+                className="rounded-[6px] border border-white/30 px-3 py-1 text-[9px] text-white"
+              >
+                Close
+              </button>
+            </div>
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={photo.id}
+                src={photo.storageUrl}
+                alt=""
+                className="max-h-full max-w-full object-contain"
+              />
+              {displayPhotos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSlideshowIdx((prev) => (prev - 1 + displayPhotos.length) % displayPhotos.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-[6px] bg-white/10 px-3 py-2 text-white text-sm"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlideshowIdx((prev) => (prev + 1) % displayPhotos.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[6px] bg-white/10 px-3 py-2 text-white text-sm"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

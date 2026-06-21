@@ -600,21 +600,29 @@ export default function EventDetailPage({
             >
               {zipping ? "Preparing ZIP…" : `Download all ${filteredPhotos.length} photo${filteredPhotos.length === 1 ? "" : "s"} as ZIP`}
             </button>
-            {/* Masonry: photos flow into 2 columns at their natural aspect ratio */}
-            <div className="columns-2 gap-[5px] [column-fill:_balance]">
-              {filteredPhotos.map((photo) => (
-                <div
-                  key={photo.id}
-                  className="mb-[5px] break-inside-avoid overflow-hidden rounded-[4px] cursor-pointer"
-                  onClick={() => { setSlideshowIdx(filteredPhotos.indexOf(photo)); setSlideshowOpen(true); }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.thumbnailUrl ?? photo.storageUrl}
-                    alt=""
-                    loading="lazy"
-                    className="block w-full h-auto"
-                  />
+            {/* Masonry: photos distributed round-robin across 2 columns so the
+                newest stay on top and reading order is preserved (left→right,
+                top→bottom) while keeping natural aspect ratios. */}
+            <div className="flex gap-[5px]">
+              {[0, 1].map((col) => (
+                <div key={col} className="flex flex-1 flex-col gap-[5px]">
+                  {filteredPhotos
+                    .filter((_, i) => i % 2 === col)
+                    .map((photo) => (
+                      <div
+                        key={photo.id}
+                        className="overflow-hidden rounded-[4px] cursor-pointer"
+                        onClick={() => { setSlideshowIdx(filteredPhotos.indexOf(photo)); setSlideshowOpen(true); }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.thumbnailUrl ?? photo.storageUrl}
+                          alt=""
+                          loading="lazy"
+                          className="block w-full h-auto"
+                        />
+                      </div>
+                    ))}
                 </div>
               ))}
             </div>
