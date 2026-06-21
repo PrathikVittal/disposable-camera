@@ -600,15 +600,21 @@ export default function EventDetailPage({
             >
               {zipping ? "Preparing ZIP…" : `Download all ${filteredPhotos.length} photo${filteredPhotos.length === 1 ? "" : "s"} as ZIP`}
             </button>
-            <div className="grid grid-cols-3 gap-[3px]">
+            {/* Masonry: photos flow into 2 columns at their natural aspect ratio */}
+            <div className="columns-2 gap-[5px] [column-fill:_balance]">
               {filteredPhotos.map((photo) => (
                 <div
                   key={photo.id}
-                  className="aspect-square rounded-[3px] overflow-hidden cursor-pointer"
+                  className="mb-[5px] break-inside-avoid overflow-hidden rounded-[4px] cursor-pointer"
                   onClick={() => { setSlideshowIdx(filteredPhotos.indexOf(photo)); setSlideshowOpen(true); }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.thumbnailUrl ?? photo.storageUrl} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={photo.thumbnailUrl ?? photo.storageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="block w-full h-auto"
+                  />
                 </div>
               ))}
             </div>

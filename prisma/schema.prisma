@@ -16,6 +16,17 @@ model User {
   provider     String   @default("credentials")
   createdAt    DateTime @default(now())
   events       Event[]
+  resetCodes   PasswordResetCode[]
+}
+
+model PasswordResetCode {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 model Event {

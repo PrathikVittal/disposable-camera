@@ -86,7 +86,15 @@ function LoginForm() {
             />
           </div>
           <div className="space-y-1">
-            <Overline>Password</Overline>
+            <div className="flex items-center justify-between">
+              <Overline>Password</Overline>
+              <Link
+                href="/auth/forgot-password"
+                className="text-[9px] text-[#888] underline underline-offset-4 hover:text-black"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={form.password}
