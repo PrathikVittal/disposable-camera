@@ -41,6 +41,12 @@ todos:
   - id: migrate-email-to-ses
     content: For the client AWS handoff, swap Resend → AWS SES in lib/email.ts (SES SendEmailCommand already stubbed inline). Reuses existing AWS creds; needs ses:SendEmail IAM permission + sandbox exit.
     status: pending
+  - id: host-aspect-ratio
+    content: "Host-set photo aspect ratio per event (e.g. Original / 1:1 / 4:3 / 16:9), surfaced under an 'Additional Settings' group in event creation/edit. Applied as an automatic post-capture crop on upload (full-res native capture is unaffected; the OS camera owns capture, so this is a crop, not a pre-capture viewfinder setting). Gives a consistent gallery look. TO BE ADDED LATER."
+    status: pending
+  - id: auto-enhance-photos
+    content: "Optional on-demand 'Auto-enhance' under event 'Additional Settings'. A LIGHT, tasteful touch only — mild sharp .sharpen() + slight .modulate({ saturation: 1.04 }) — applied to the DISPLAY derivative only (originals stay untouched/authentic). Off by default; opt-in per event. Caution: phone photos are already processed, so keep it subtle to avoid over-sharpening/halos. TO BE ADDED LATER."
+    status: pending
   - id: decide-original-download-access
     content: Decide whether full-resolution originals should be downloadable from the public gallery or restricted to the authenticated host only. Currently BOTH the host event-detail page and the public gallery "Download all" pull originals. If host-only is desired, gate originalUrl behind auth in the events GET and have the public gallery fall back to the display version.
     status: pending
@@ -155,6 +161,9 @@ Working name: **"Digital Disposable Events"**
 - Create event: name (required), date (required), description, cover image (file upload, resized to max 1200px → S3), per-guest photo limit (1–50), start/end time, **timezone** (IANA, auto-detected from the host's browser), moderation toggle
 - Edit event: inline slide-in panel with the same fields incl. timezone (except cover image)
 - Event list on dashboard shows thumbnail, name, date, moderation status
+- **Additional Settings (planned, to be added later):** a grouped section in create/edit for extra per-event options:
+  - **Host-set photo aspect ratio** (Original / 1:1 / 4:3 / 16:9) — automatic post-capture crop on upload, for a consistent gallery look. See todo `host-aspect-ratio`.
+  - **Auto-enhance (optional, on-demand):** a light, tasteful touch only — mild `.sharpen()` + slight `.modulate({ saturation: 1.04 })` via `sharp` — applied to the **display** derivative only; **originals stay untouched**. Off by default. Keep subtle (phone photos are already processed). See todo `auto-enhance-photos`.
 
 ### 5.3 Guest Camera Interface
 
@@ -184,8 +193,9 @@ Working name: **"Digital Disposable Events"**
 
 - Route `/gallery/{eventId}` — public, no-auth required
 - Shows approved photos (or all if moderation off) in a 3-column grid (thumbnails); ZIP download pulls originals
+- **Full-screen slideshow** — open via "Play slideshow" or by tapping any photo; auto-advance (4s), ‹ › prev/next, counter, and keyboard nav (← → / Esc) for projector use. Shows the display-quality image.
 - Linked from host event detail page with a copyable URL
-- *(Note: masonry + slideshow currently live on the host event page, not the public gallery — candidate to unify.)*
+- *(Note: the **masonry** layout currently lives on the host event page only; the public gallery uses a uniform 3-column grid — candidate to unify.)*
 
 ### 5.7 QR Code & Poster
 
@@ -375,6 +385,8 @@ Still pending:
 8. **Event archival / retention**: soft-delete + lifecycle tiering of old event photos
 9. **Migrate email to SES** for the client AWS handoff (stub ready in `lib/email.ts`)
 10. **`.env.local.example` var-name mismatch**: example lists `AWS_REGION` etc.; the code reads `REGION`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY` (no `AWS_` prefix) — align to avoid setup confusion
+11. **Host-set aspect ratio** (event "Additional Settings"): Original / 1:1 / 4:3 / 16:9, auto-crop on upload — *to be added later*
+12. **Auto-enhance, on-demand** (event "Additional Settings"): light `.sharpen()` + slight `.modulate({ saturation: 1.04 })` on the **display** version only, originals untouched, off by default — *to be added later*
 
 ## 10. Out-of-Scope / Phase 3 Items
 
