@@ -5,7 +5,6 @@
   --color-white: #FFFFFF;
   --color-off: #F5F5F5;
   --color-border: #E0E0E0;
-  --color-accent: #FF3C00;
   --color-muted: #888888;
   --color-dark-bg: #1A1A1A;
 }
@@ -21,10 +20,21 @@
 }
 
 html, body {
-  max-width: 430px;
+  /* Mobile keeps a phone-width column; pages opt into wider desktop
+     layouts internally (e.g. the homepage hero) as they get redesigned. */
+  max-width: 1512px;
   margin: 0 auto;
   overflow-x: hidden;
   background: var(--color-white);
   color: var(--color-void);
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Hero photo-ring orbit: a ring container spins continuously; each card
+   counter-spins the same amount so the photo itself stays upright while
+   still travelling around the circle. */
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
 }

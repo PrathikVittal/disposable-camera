@@ -404,7 +404,7 @@ export default function EventDetailPage({
         stats={[
           { value: filteredPhotos.length, label: "Photos" },
           { value: uniqueGuests, label: "Guests" },
-          { value: event.photoLimitPerGuest, label: "Limit", accent: true },
+          { value: event.photoLimitPerGuest, label: "Limit" },
         ]}
       />
 
@@ -418,7 +418,7 @@ export default function EventDetailPage({
           <button
             type="button"
             onClick={handleDownloadQR}
-            className="flex-1 bg-[#FF3C00] text-white text-center text-[10px] font-[800] tracking-[0.08em] uppercase rounded-[6px] py-[10px]"
+            className="flex-1 bg-white text-black text-center text-[10px] font-[800] tracking-[0.08em] uppercase rounded-[6px] py-[10px]"
           >
             Download QR
           </button>
@@ -475,7 +475,7 @@ export default function EventDetailPage({
         <Link
           href={`/gallery/${id}`}
           target="_blank"
-          className="block w-full rounded-[6px] bg-[#F5F5F5] border border-[#E0E0E0] py-[9px] text-center text-[9px] font-[700] tracking-[0.06em] uppercase text-[#FF3C00]"
+          className="block w-full rounded-[6px] bg-[#F5F5F5] border border-[#E0E0E0] py-[9px] text-center text-[9px] font-[700] tracking-[0.06em] uppercase text-black"
         >
           Open Gallery ↗
         </Link>

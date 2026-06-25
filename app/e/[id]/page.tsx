@@ -352,7 +352,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       <div className="flex min-h-screen flex-col items-center justify-center bg-white px-[15px] text-center text-black">
         <div className="max-w-sm space-y-5">
           <span className="text-[14px] font-[800] tracking-[0.18em]">
-            DD<span className="text-[#FF3C00]">C</span>
+            DDC
           </span>
           <h1 className="text-[26px] font-[800] tracking-[-0.02em] leading-tight">
             Not just yet.
@@ -390,7 +390,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       {/* Nav */}
       <nav className="flex items-center justify-between px-[15px] py-2 border-b border-black">
         <span className="text-[14px] font-[800] tracking-[0.18em]">
-          DD<span className="text-[#FF3C00]">C</span>
+          DDC
         </span>
         <span className="text-[9px] font-[700] text-[#888] tracking-[0.06em] uppercase">No app · No login</span>
       </nav>
@@ -408,7 +408,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
       {/* Stat grid */}
       <StatGrid
         stats={[
-          { value: remaining ?? event.photoLimitPerGuest, label: "Shots Left", accent: true },
+          { value: remaining ?? event.photoLimitPerGuest, label: "Shots Left" },
           { value: photosTaken, label: "Taken" },
         ]}
       />
@@ -419,12 +419,12 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
           <Overline className="mb-2">Before You Shoot</Overline>
           <div className="space-y-3">
             {[
-              { n: "1", text: "Tap below to open your camera — allow access if your phone asks.", accent: false },
-              { n: "2", text: `Take up to ${event.photoLimitPerGuest} photos. Used shots cannot be undone.`, accent: false },
-              { n: "3", text: "Close the tab when done — photos auto-save to the gallery.", accent: true },
+              { n: "1", text: "Tap below to open your camera — allow access if your phone asks." },
+              { n: "2", text: `Take up to ${event.photoLimitPerGuest} photos. Used shots cannot be undone.` },
+              { n: "3", text: "Close the tab when done — photos auto-save to the gallery." },
             ].map((s) => (
               <div key={s.n} className="flex items-start gap-[10px]">
-                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-[11px] font-[800] text-white ${s.accent ? "bg-[#FF3C00]" : "bg-black"}`}>
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-[11px] font-[800] text-white bg-black">
                   {s.n}
                 </span>
                 <p className="text-[10px] text-[#555] leading-[1.5]">{s.text}</p>
@@ -440,7 +440,7 @@ export default function GuestEventPage({ params }: { params: Promise<{ id: strin
           type="button"
           onClick={openCamera}
           disabled={limitReached || busy}
-          className="w-full rounded-[6px] bg-[#FF3C00] text-white py-[14px] text-[13px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
+          className="w-full rounded-[6px] bg-black text-white py-[14px] text-[13px] font-[800] uppercase tracking-[0.08em] disabled:opacity-50"
         >
           {limitReached
             ? "Photo limit reached"

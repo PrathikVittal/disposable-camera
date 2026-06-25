@@ -144,7 +144,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
       {/* Nav */}
       <nav className="flex items-center justify-between px-[15px] py-2 border-b border-black">
         <span className="text-[14px] font-[800] tracking-[0.18em]">
-          DD<span className="text-[#FF3C00]">C</span>
+          DDC
         </span>
         <span className="text-[9px] font-[700] text-[#888] tracking-[0.06em] uppercase">Host View</span>
       </nav>
@@ -166,7 +166,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
       <StatGrid
         stats={[
           { value: approvedPhotos.length, label: "Approved" },
-          { value: pendingPhotos.length, label: "Pending", accent: true },
+          { value: pendingPhotos.length, label: "Pending" },
           { value: rejectedPhotos.length, label: "Rejected" },
         ]}
       />
@@ -221,7 +221,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
           type="button"
           onClick={() => openSlideshow(0)}
           disabled={displayPhotos.length === 0}
-          className="w-full rounded-[6px] bg-[#FF3C00] text-white py-[10px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:opacity-50"
+          className="w-full rounded-[6px] bg-black text-white py-[10px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:opacity-50"
         >
           ▶ Play slideshow
         </button>
@@ -243,7 +243,7 @@ export default function GalleryPage({ params }: { params: Promise<{ id: string }
           </button>
           <Link
             href={`/dashboard/events/${id}`}
-            className="flex-1 block text-center rounded-[6px] border-[1.5px] border-[#FF3C00] text-[#FF3C00] py-[9px] text-[10px] font-[700] tracking-[0.08em] uppercase"
+            className="flex-1 block text-center rounded-[6px] border-[1.5px] border-black py-[9px] text-[10px] font-[700] tracking-[0.08em] uppercase"
           >
             Edit event
           </Link>

@@ -187,7 +187,7 @@ export default function DashboardPage() {
       <header className="bg-black text-white px-[15px] pt-2 pb-4 border-b border-black">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[14px] font-[800] tracking-[0.18em]">
-            DD<span className="text-[#FF3C00]">C</span>
+            DDC
           </span>
           <button
             type="button"
@@ -354,7 +354,7 @@ export default function DashboardPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="mt-3 w-full rounded-[6px] bg-[#FF3C00] text-white py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-3 w-full rounded-[6px] bg-black text-white py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? "Creating event…" : "Create event →"}
         </button>
@@ -392,7 +392,7 @@ export default function DashboardPage() {
                 </div>
                 <Link
                   href={`/dashboard/events/${event.id}`}
-                  className="shrink-0 bg-[#FF3C00] text-white text-[9px] font-[800] rounded-[4px] px-[10px] py-[6px]"
+                  className="shrink-0 bg-white text-black text-[9px] font-[800] rounded-[4px] px-[10px] py-[6px]"
                 >
                   Open &rarr;
                 </Link>

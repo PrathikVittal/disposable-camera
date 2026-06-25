@@ -145,7 +145,7 @@ export default function ForgotPasswordPage() {
           <button
             type="button"
             onClick={() => router.push("/auth/login")}
-            className="w-full rounded-[6px] bg-[#FF3C00] text-white px-4 py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase"
+            className="w-full rounded-[6px] bg-black text-white px-4 py-[11px] text-[10px] font-[800] tracking-[0.08em] uppercase"
           >
             Back to sign in
           </button>

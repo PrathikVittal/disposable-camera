@@ -22,7 +22,7 @@ export default function EventEndedPage({
     <div className="flex min-h-screen flex-col items-center justify-center bg-white px-[15px] text-center text-black">
       <div className="max-w-sm space-y-5">
         <span className="text-[14px] font-[800] tracking-[0.18em]">
-          DD<span className="text-[#FF3C00]">C</span>
+          DDC
         </span>
 
         <h1 className="text-[32px] font-[800] tracking-[-0.03em] leading-[1.05]">
