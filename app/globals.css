@@ -19,15 +19,38 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+/* Browsers don't inherit font-family into form controls by default, so
+   buttons/inputs would silently fall back to the UA font without this. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Bebas Neue for headings/display/numbers/labels — applied per-element via
+   this class. Nunito is the site-wide default, set on body below. */
+.font-bebas {
+  font-family: var(--font-bebas), -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* The root element fills the ENTIRE canvas with the dark stage — unconstrained
+   in width — so there's no white peeking through on overscroll (rubber-band) at
+   the top/bottom or in the side margins on wide screens. Internal pages set their
+   own bg-white roots, so their content still reads light; only the edges go dark. */
+html {
+  background: #0D0D0D;
+}
+
+body {
   /* Mobile keeps a phone-width column; pages opt into wider desktop
      layouts internally (e.g. the homepage hero) as they get redesigned. */
   max-width: 1512px;
   margin: 0 auto;
   overflow-x: hidden;
-  background: var(--color-white);
+  background: #0D0D0D;
   color: var(--color-void);
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-nunito), -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Hero photo-ring orbit: a ring container spins continuously; each card
@@ -38,3 +61,48 @@ html, body {
     transform: rotate(360deg);
   }
 }
+
+/* ── Hero entrance (runs once on page load) ─────────────────────────────────
+   The dark rings fade/zoom in behind the copy, and each line of copy rises in
+   with a small stagger (set per-element via the --rise-delay variable). */
+@keyframes heroRingsIn {
+  from { opacity: 0; transform: scale(1.06); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes heroRise {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-rings-in {
+  animation: heroRingsIn 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-rise {
+  animation: heroRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+/* ── Hero fade-to-background on scroll ──────────────────────────────────────
+   Scroll-driven: as the page scrolls through the first ~75vh, the whole hero
+   fades out and drifts up, dissolving into the dark stage as "How it works"
+   arrives. Wrapped in @supports so browsers without scroll timelines simply
+   keep the hero fully visible (graceful no-op). */
+@keyframes heroScrollFade {
+  to { opacity: 0; transform: translateY(-48px); }
+}
+@supports (animation-timeline: scroll()) {
+  .hero-scroll-fade {
+    animation: heroScrollFade linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 55vh;
+    will-change: opacity, transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rings-in,
+  .hero-rise,
+  .hero-scroll-fade {
+    animation: none;
+  }
+}
+
