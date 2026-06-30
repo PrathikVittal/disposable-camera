@@ -68,7 +68,7 @@ export default function Reviews() {
     "linear-gradient(to right, transparent 0, black 7%, black 93%, transparent 100%)";
 
   return (
-    <section id="reviews" className="px-[15px] md:px-10 lg:px-16 py-20 md:py-28">
+    <section id="reviews" className="px-[15px] md:px-10 lg:px-16 py-12 md:py-28">
       <h2 className="text-center font-bebas text-[34px] md:text-[56px] font-[800] uppercase tracking-[-0.02em] leading-[0.95]">
         Loved
         <br />
@@ -84,16 +84,16 @@ export default function Reviews() {
         {REVIEWS.map((r, i) => (
           <article
             key={i}
-            className="flex w-[78vw] max-w-[340px] shrink-0 flex-col rounded-xl bg-white p-5 sm:w-[60vw] md:w-[340px]"
+            className="flex w-[68vw] max-w-[280px] shrink-0 flex-col bg-white p-4 sm:w-[50vw] md:w-[280px]"
           >
             {/* Quote panel */}
-            <div className="rounded-md border border-black/15 bg-[#f4f4f4] p-5">
-              <p className="text-[14px] md:text-[16px] leading-[1.5] text-[#1a1a1a]">{r.body}</p>
+            <div className="border border-black/15 bg-[#f4f4f4] p-4">
+              <p className="text-[13px] md:text-[15px] leading-[1.5] text-[#1a1a1a]">{r.body}</p>
             </div>
-            <h3 className="mt-6 font-bebas text-[17px] md:text-[24px] font-[800] uppercase tracking-[-0.01em] text-black">
+            <h3 className="mt-5 text-center font-bebas text-[15px] md:text-[20px] font-[800] uppercase tracking-[-0.01em] text-black">
               {r.title}
             </h3>
-            <p className="mt-2 text-[13px] md:text-[16px] text-[#888]">{r.name}</p>
+            <p className="mt-2 text-center text-[12px] md:text-[14px] text-[#888]">{r.name}</p>
           </article>
         ))}
       </div>
@@ -106,9 +106,8 @@ export default function Reviews() {
             type="button"
             aria-label={`Go to review ${i + 1}`}
             onClick={() => goTo(i)}
-            className={`h-2 rounded-full transition-all ${
-              i === active ? "w-7 bg-white" : "w-2 bg-white/30 hover:bg-white/50"
-            }`}
+            className={`h-2 rounded-full transition-all ${i === active ? "w-7 bg-white" : "w-2 bg-white/30 hover:bg-white/50"
+              }`}
           />
         ))}
       </div>

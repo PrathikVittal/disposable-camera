@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import HowItWorks from "@/app/components/HowItWorks";
 import WhyDDC from "@/app/components/WhyDDC";
@@ -160,6 +160,7 @@ function PhotoRing({
 
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
   const navGlass = {
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04) 40%, rgba(255,255,255,0.02))",
@@ -167,15 +168,34 @@ export default function Home() {
       "inset 0 1px 0 rgba(255,255,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.10), 0 14px 44px rgba(0,0,0,0.45)",
   };
 
+  // Close the mobile menu on any touch/click outside the nav (the pill + the
+  // dropdown panel below it) — e.g. tapping the page content behind it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [menuOpen]);
+
+  const scrollToTop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
       {/* Nav — floating dark glass pill */}
-      <nav className="fixed top-3 left-0 right-0 z-50 px-[15px] md:px-6">
+      <nav ref={navRef} className="fixed top-3 left-0 right-0 z-50 px-[15px] md:px-6">
         <div
           className="mx-auto flex max-w-[1100px] items-center justify-between rounded-full px-4 md:px-6 py-2.5 md:py-3 backdrop-blur-2xl"
           style={navGlass}
         >
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/" onClick={scrollToTop} className="flex items-center gap-2.5">
             <span className="h-6 w-6 rounded-full" style={{ background: "#4F46E5" }} />
             <span className="font-bebas text-[16px] md:text-[20px] font-[800] tracking-[0.16em] text-white">
               DDC
@@ -234,7 +254,7 @@ export default function Home() {
           `hero-scroll-fade` dissolves the whole hero into the background as you
           scroll toward "How it works" (scroll-driven, see globals.css). */}
       <section
-        className="hero-scroll-fade relative h-[480px] sm:h-[560px] md:h-[680px] lg:h-[760px] overflow-hidden"
+        className="hero-scroll-fade relative mt-8 md:mt-12 h-[560px] sm:h-[640px] md:h-[780px] lg:h-[860px] overflow-hidden"
         style={{
           containerType: "size",
           width: "100vw",
@@ -242,8 +262,20 @@ export default function Home() {
           background: STAGE,
         }}
       >
-        {/* Two rings, each spinning slowly — fade/zoom in on load */}
-        <div className="hero-rings-in absolute inset-0 pointer-events-none">
+        {/* Two rings, each spinning slowly — fade/zoom in on load.
+            The mask fades the PHOTOS THEMSELVES to transparent toward the bottom
+            (and a touch at the top), so ring cards dissolve into the stage instead
+            of being hard-clipped by overflow-hidden — no bright clipped edge / line
+            at the seam. */}
+        <div
+          className="hero-rings-in absolute inset-0 pointer-events-none"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0, #000 6%, #000 62%, transparent 90%)",
+            maskImage:
+              "linear-gradient(to bottom, transparent 0, #000 6%, #000 62%, transparent 90%)",
+          }}
+        >
           <PhotoRing cards={OUTER_RING_CARDS} radius={OUTER_RADIUS} duration={OUTER_RING_DURATION} reverse />
           <PhotoRing cards={INNER_RING_CARDS} radius={INNER_RADIUS} duration={INNER_RING_DURATION} />
           {/* Circular fade to the stage colour: clears the center for the copy
@@ -255,8 +287,6 @@ export default function Home() {
               background: `radial-gradient(circle ${FADE_RADIUS}cqmin at 50% 49%, #0D0D0D 0, #0D0D0D ${FADE_SOLID}cqmin, rgba(13,13,13,0) ${FADE_RADIUS}cqmin)`,
             }}
           />
-          {/* Fade the bottom edge of the hero into the section below (same dark) */}
-          <div className="absolute inset-x-0 bottom-0 h-20 md:h-28 bg-gradient-to-b from-transparent to-[#0D0D0D]" />
         </div>
 
         {/* Centered copy — each line rises in on load (staggered) */}

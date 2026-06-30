@@ -208,12 +208,11 @@ const STACK_PHONE_CROP_H = STACK_PHONE_W * STACK_BEZEL_RATIO * STACK_VISIBLE;
 // STACK_PEEK is the headline one: after a card stacks on top of another, this
 // many PIXELS of the buried card stay visible (its coloured lip at the top).
 const STACK_PEEK = 20; // visible px of each buried card after the next stacks on it
-const STACK_SCALE_STEP = 0.1; // extra shrink applied to each buried card (per level)
-const STACK_ENTER_DROP = 620; // px below its resting spot a card starts, before sliding up
+const STACK_ENTER_DROP = 500; // px below its resting spot a card starts, before sliding up
 // Scroll budget (in vh) — controls how long the section stays pinned:
 const STACK_SCROLL_PER_CARD = 80; // scroll distance for ONE card to slide up & stack
 const STACK_MOVE = 0.85; // fraction of that distance spent moving (the rest is a dwell)
-const STACK_HOLD = 30; // scroll distance the finished stack holds before the section releases
+const STACK_HOLD = 5; // scroll distance the finished stack holds before the section releases
 
 // Light pastel card colours, one per step (cycles if there are more steps).
 const STACK_PASTELS = ["#ECE7FF", "#E2F7EC", "#FFE9DD"];
@@ -249,18 +248,15 @@ function StackCard({
     [isAnchor ? 0 : restY + STACK_ENTER_DROP, restY],
   );
 
-  // Buried cards shrink slightly for depth; the front (last) card stays at 1.
-  const targetScale = 1 - (count - 1 - index) * STACK_SCALE_STEP;
-  const scale = useTransform(progress, [isAnchor ? 0 : winEnd, 1], [1, targetScale]);
-
   return (
     <motion.div
-      className="absolute inset-x-0 mx-auto w-full max-w-[300px] origin-top rounded-[30px] p-5 pb-6 shadow-[0_22px_55px_rgba(0,0,0,0.55)] ring-1 ring-black/5"
+      className="absolute inset-x-0 mx-auto w-full max-w-[300px] origin-top rounded-[30px] p-5 pb-6 shadow-[0_12px_30px_rgba(0,0,0,0.55)] ring-1 ring-black/5"
       style={{
         y,
-        scale,
         top: 0,
         zIndex: index,
+        willChange: "transform",
+        backfaceVisibility: "hidden",
         backgroundColor: STACK_PASTELS[index % STACK_PASTELS.length],
       }}
     >

@@ -26,10 +26,10 @@ const FAQS = [
 ];
 
 export default function FAQ() {
-  const [open, setOpen] = useState(0);
+  const [open, setOpen] = useState(-1);
 
   return (
-    <section id="faq" className="px-[15px] md:px-10 lg:px-16 py-20 md:py-28">
+    <section id="faq" className="px-[15px] md:px-10 lg:px-16 py-12 md:py-28">
       <h2 className="text-center font-bebas text-[34px] md:text-[56px] font-[800] uppercase tracking-[-0.02em] leading-[0.95]">
         FAQ
       </h2>
@@ -55,11 +55,11 @@ export default function FAQ() {
                 <span className="font-bebas text-[14px] md:text-[20px] font-[800] uppercase tracking-[0.01em] text-white">
                   {item.q}
                 </span>
-                <span className="relative h-5 w-5 shrink-0 text-white">
+                <span className="relative h-[14px] w-[14px] shrink-0 text-white">
                   {/* horizontal bar (always) + vertical bar (only when closed) = +/− */}
-                  <span className="absolute left-0 top-1/2 h-[2px] w-5 -translate-y-1/2 rounded bg-current" />
+                  <span className="absolute left-0 top-1/2 h-[1.5px] w-[14px] -translate-y-1/2 rounded bg-current" />
                   <span
-                    className={`absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 rounded bg-current transition-opacity ${isOpen ? "opacity-0" : "opacity-100"
+                    className={`absolute left-1/2 top-0 h-[14px] w-[1.5px] -translate-x-1/2 rounded bg-current transition-opacity ${isOpen ? "opacity-0" : "opacity-100"
                       }`}
                   />
                 </span>

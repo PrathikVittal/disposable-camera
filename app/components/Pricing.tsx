@@ -132,11 +132,10 @@ function PlanContent({ plan }: { plan: Plan }) {
 // PROGRESS through a tall "track", so the finished stack HOLDS before the whole
 // section unpins together. Keep these in sync with HowItWorks.tsx.
 const STACK_PEEK = 20; // visible px of each buried card after the next stacks on it
-const STACK_SCALE_STEP = 0.1; // extra shrink applied to each buried card (per level)
-const STACK_ENTER_DROP = 620; // px below its resting spot a card starts, before sliding up
+const STACK_ENTER_DROP = 480; // px below its resting spot a card starts, before sliding up
 const STACK_SCROLL_PER_CARD = 80; // scroll distance (vh) for ONE card to slide up & stack
 const STACK_MOVE = 0.85; // fraction of that distance spent moving (the rest is a dwell)
-const STACK_HOLD = 30; // scroll distance (vh) the finished stack holds before release
+const STACK_HOLD = 2; // scroll distance (vh) the finished stack holds before release
 
 function PricingStackCard({
   plan,
@@ -168,14 +167,10 @@ function PricingStackCard({
     [isAnchor ? 0 : restY + STACK_ENTER_DROP, restY],
   );
 
-  // Buried cards shrink slightly for depth; the front (last) card stays at 1.
-  const targetScale = 1 - (count - 1 - index) * STACK_SCALE_STEP;
-  const scale = useTransform(progress, [isAnchor ? 0 : winEnd, 1], [1, targetScale]);
-
   return (
     <motion.div
-      className="absolute inset-x-0 mx-auto flex w-full max-w-[360px] origin-top flex-col rounded-3xl p-6 pb-7 ring-1 ring-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.55)]"
-      style={{ y, scale, top: 0, zIndex: index, ...planStyle(plan) }}
+      className="absolute inset-x-0 mx-auto flex w-full max-w-[360px] origin-top flex-col rounded-3xl p-6 pb-7 ring-1 ring-white/10 shadow-[0_12px_30px_rgba(0,0,0,0.55)]"
+      style={{ y, top: 0, zIndex: index, willChange: "transform", backfaceVisibility: "hidden", ...planStyle(plan) }}
     >
       <PlanContent plan={plan} />
     </motion.div>
@@ -197,7 +192,7 @@ function MobilePricing() {
   return (
     <div ref={trackRef} className="md:hidden" style={{ height: `${trackVh}vh` }}>
       {/* Pinned frame: heading + first card stay put; cards 2..n slide up */}
-      <div className="sticky top-0 flex h-screen flex-col items-center pt-[92px]">
+      <div className="sticky top-0 flex h-screen flex-col items-center pt-[80px]">
         <PricingHeading />
         <div className="relative mt-10 w-full flex-1">
           {PLANS.map((plan, i) => (

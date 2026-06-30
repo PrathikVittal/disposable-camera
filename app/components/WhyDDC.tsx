@@ -103,7 +103,7 @@ function WhyPhone({
 
 export default function WhyDDC() {
   return (
-    <section id="why" className="px-[15px] md:px-10 lg:px-16 py-20 md:py-28">
+    <section id="why" className="px-[15px] md:px-10 lg:px-16 py-12 md:py-28">
       <h2 className="text-center font-bebas text-[34px] md:text-[56px] font-[800] uppercase tracking-[-0.02em] leading-[0.95]">
         Why DDC?
       </h2>
